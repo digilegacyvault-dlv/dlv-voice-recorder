@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <!-- 
 ============================================================
- DIGI Legacy Vault — voice_recorder.html
- CAIT53 | June 27, 2026
- BASE: CAIT51 voice_recorder (light cream scheme from CAIT52)
+ DIGI Legacy Vault — voice_recorder (GitHub Pages version)
+ CAIT54 | June 30, 2026
+ BASE: CAIT53 voice_recorder verbatim
  CHANGES:
- ITEM 6: Added "Return to Main Page" button at top and bottom
- Uses window.GAS_BASE_URL to navigate back to main vault.
- Falls back to window.history.back() if URL unavailable.
+ ITEM 1: saveRecording() rewritten to use fetch() against the
+ GAS web app's /exec URL instead of google.script.run,
+ since google.script.run only works on pages served
+ directly by Apps Script. This page is now hosted on
+ GitHub Pages, so it needs a normal web API call instead.
+ ITEM 2: Added GAS_WEBAPP_URL config constant near the top of
+ the script — REQUIRED: paste your GAS /exec URL there
+ before this will work.
+ Everything else (recording, meter, timer, playback, mic
+ handling, Return to Main Page) is unchanged from CAIT53.
 ============================================================ 
 -->
 <html lang="en">
@@ -228,7 +235,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT53</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT54</div>
 <div id="recorder-card">
  <h1>&#127908; Voice Recorder</h1>
  <p id="recorder-subtitle">Record your personal message for your Trustees</p>
@@ -256,10 +263,19 @@ h1 {
  <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Re-record</button>
  <div id="save-status"></div>
  </div>
- <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT53</div>
+ <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT54</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
+// ============================================================
+// CONFIG — REQUIRED
+// Paste your GAS Web App /exec URL below, between the quotes.
+// This is the same URL that appears when you deploy your GAS
+// project as a web app (Deploy > Manage deployments > Web app URL).
+// Example: 'https://script.google.com/macros/s/AKfycb.../exec'
+// ============================================================
+var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+
 var mediaRecorder = null;
 var audioChunks = [];
 var audioBlob = null;
@@ -271,16 +287,9 @@ var meterInterval = null;
 var audioStream = null;
 
 function returnToMain() {
- if (document.referrer && document.referrer.indexOf('script.google.com') !== -1) {
- window.location.href = document.referrer;
- return;
- }
- var base = window.location.href.split('?')[0];
- if (base) {
- window.location.href = base + '?domain=LEGAL&t=' + Date.now();
- } else {
- window.history.back();
- }
+ // No longer relying on document.referrer since this page is
+ // now hosted externally, not opened from within the GAS app.
+ window.location.href = 'https://digilegacyvault.com';
 }
 
 function toggleRecording() {
@@ -360,8 +369,20 @@ function updateTimerDisplay() {
  document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
 }
 
+// ============================================================
+// saveRecording — REWRITTEN for CAIT54
+// Uses fetch() against the GAS /exec URL instead of
+// google.script.run, since this page is hosted on GitHub Pages
+// (external to Apps Script) and that bridge does not exist here.
+// Sent as Content-Type: text/plain to avoid a CORS preflight
+// request, which Apps Script web apps do not handle.
+// ============================================================
 function saveRecording() {
  if (!audioBlob) { setSaveStatus('No recording to save.'); return; }
+ if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL.indexOf('PASTE_YOUR') !== -1) {
+ setSaveStatus('Setup incomplete: GAS_WEBAPP_URL not configured.');
+ return;
+ }
  var btn = document.getElementById('save-btn');
  btn.disabled = true;
  setSaveStatus('Saving to your vault…');
@@ -369,8 +390,22 @@ function saveRecording() {
  reader.onload = function(e) {
  var base64 = e.target.result.split(',')[1];
  var fileName = 'VoiceMessage_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
- google.script.run
- .withSuccessHandler(function(r) {
+ var payload = {
+ action: 'saveVoiceRecording',
+ base64Data: base64,
+ mimeType: 'audio/webm',
+ fileName: fileName,
+ subscriberEmail: '',
+ trusteeNumber: '',
+ durationSeconds: timerSeconds
+ };
+ fetch(GAS_WEBAPP_URL, {
+ method: 'POST',
+ headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+ body: JSON.stringify(payload)
+ })
+ .then(function(res) { return res.json(); })
+ .then(function(r) {
  if (r && r.success) {
  setSaveStatus('✓ Voice message saved to your vault!');
  btn.textContent = '✓ Saved';
@@ -380,11 +415,10 @@ function saveRecording() {
  btn.disabled = false;
  }
  })
- .withFailureHandler(function() {
- setSaveStatus('Error saving. Please try again.');
+ .catch(function(err) {
+ setSaveStatus('Error saving. Please try again. (' + err.message + ')');
  btn.disabled = false;
- })
- .saveVoiceRecording({ base64Data: base64, mimeType: 'audio/webm', fileName: fileName, subscriberEmail: '', trusteeNumber: '', durationSeconds: timerSeconds });
+ });
  };
  reader.readAsDataURL(audioBlob);
 }
