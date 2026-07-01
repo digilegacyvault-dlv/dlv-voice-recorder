@@ -2,8 +2,8 @@
 <!-- 
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CAIT54 | June 30, 2026
- BASE: CAIT53 voice_recorder verbatim
+ CAIT55 | June 30, 2026
+ BASE: CAIT54 voice_recorder verbatim (CAIT54 = fetch() rewrite, never deployed to GAS — this CAIT55 adds the no-cors CORS fix)
  CHANGES:
  ITEM 1: saveRecording() rewritten to use fetch() against the
  GAS web app's /exec URL instead of google.script.run,
@@ -235,7 +235,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT54</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT55</div>
 <div id="recorder-card">
  <h1>&#127908; Voice Recorder</h1>
  <p id="recorder-subtitle">Record your personal message for your Trustees</p>
@@ -263,7 +263,7 @@ h1 {
  <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Re-record</button>
  <div id="save-status"></div>
  </div>
- <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT54</div>
+ <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT55</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
@@ -370,7 +370,7 @@ function updateTimerDisplay() {
 }
 
 // ============================================================
-// saveRecording — REWRITTEN for CAIT54
+// saveRecording — REWRITTEN for CAIT54, CORS FIX in CAIT55
 // Uses fetch() against the GAS /exec URL instead of
 // google.script.run, since this page is hosted on GitHub Pages
 // (external to Apps Script) and that bridge does not exist here.
@@ -399,21 +399,22 @@ function saveRecording() {
  trusteeNumber: '',
  durationSeconds: timerSeconds
  };
+ // NOTE: mode 'no-cors' is required because Apps Script web apps do not
+ // return CORS headers, which otherwise blocks the browser from reading
+ // the response entirely (causes "Failed to fetch"). With 'no-cors' the
+ // request still reaches the server and saves the data, but the response
+ // is "opaque" — we cannot read success/error details back in the browser.
+ // Verify saves by checking the Voice_Recording sheet directly for now.
  fetch(GAS_WEBAPP_URL, {
  method: 'POST',
+ mode: 'no-cors',
  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
  body: JSON.stringify(payload)
  })
- .then(function(res) { return res.json(); })
- .then(function(r) {
- if (r && r.success) {
- setSaveStatus('✓ Voice message saved to your vault!');
- btn.textContent = '✓ Saved';
+ .then(function() {
+ setSaveStatus('Sent to your vault. Please verify it was received.');
+ btn.textContent = '✓ Sent';
  btn.style.background = '#2d5a27';
- } else {
- setSaveStatus('Error saving: ' + (r && r.error ? r.error : 'Unknown error'));
- btn.disabled = false;
- }
  })
  .catch(function(err) {
  setSaveStatus('Error saving. Please try again. (' + err.message + ')');
