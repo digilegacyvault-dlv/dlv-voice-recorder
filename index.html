@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<!-- 
+============================================================
+ DIGI Legacy Vault — voice_recorder.html
+ CAIT53 | June 27, 2026
+ BASE: CAIT51 voice_recorder (light cream scheme from CAIT52)
+ CHANGES:
+ ITEM 6: Added "Return to Main Page" button at top and bottom
+ Uses window.GAS_BASE_URL to navigate back to main vault.
+ Falls back to window.history.back() if URL unavailable.
+============================================================ 
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DLV Voice Recorder</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+ font-family: Georgia, 'Times New Roman', serif;
+ background: #f5f0e8;
+ color: #1a1108;
+ min-height: 100vh;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ padding: 24px;
+}
+#return-btn {
+ display: inline-flex;
+ align-items: center;
+ gap: .5rem;
+ padding: .5rem 1.2rem;
+ background: #1a1108;
+ color: #ffffff !important;
+ border: none;
+ border-radius: 30px;
+ font-family: Georgia, serif;
+ font-size: .78rem;
+ font-weight: bold;
+ letter-spacing: .06em;
+ text-transform: uppercase;
+ cursor: pointer;
+ margin-bottom: 12px;
+ transition: opacity .2s;
+ text-decoration: none;
+}
+#return-btn:hover { opacity: .82; }
+#rec-topbar {
+ background: #1a1108;
+ color: #f5f0e8;
+ width: 100%;
+ max-width: 500px;
+ border-radius: 8px 8px 0 0;
+ padding: 9px 18px;
+ font-size: .72rem;
+ font-weight: bold;
+ letter-spacing: .09em;
+ text-align: center;
+ color: #d4af7a;
+}
+#recorder-card {
+ background: #ffffff;
+ border: 1px solid #d4af7a;
+ border-top: none;
+ border-radius: 0 0 12px 12px;
+ padding: 28px 28px 24px;
+ width: 100%;
+ max-width: 500px;
+ text-align: center;
+ box-shadow: 0 4px 18px rgba(26,17,8,.10);
+}
+h1 {
+ font-size: 1.25rem;
+ color: #1a1108;
+ margin-bottom: 4px;
+ font-weight: bold;
+}
+#recorder-subtitle {
+ font-size: .78rem;
+ color: #1a1108;
+ margin-bottom: 20px;
+ font-weight: bold;
+}
+#meter-wrap {
+ width: 100%;
+ height: 9px;
+ background: #f5f0e8;
+ border-radius: 5px;
+ overflow: hidden;
+ margin-bottom: 16px;
+ border: 1px solid #d4af7a;
+}
+#meter-fill {
+ height: 100%;
+ width: 0%;
+ background: linear-gradient(90deg, #5a9a50, #b8860b, #c0392b);
+ transition: width .08s;
+ border-radius: 5px;
+}
+#timer-display {
+ font-size: 2.6rem;
+ font-weight: bold;
+ color: #b8860b;
+ letter-spacing: .1em;
+ margin-bottom: 18px;
+ font-variant-numeric: tabular-nums;
+}
+#record-btn {
+ width: 90px;
+ height: 90px;
+ border-radius: 50%;
+ border: 3px solid #b8860b;
+ background: #b8860b;
+ color: #ffffff;
+ font-size: .88rem;
+ font-weight: bold;
+ cursor: pointer;
+ font-family: Georgia, serif;
+ transition: background .2s, border-color .2s;
+ margin: 0 auto 10px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ letter-spacing: .04em;
+}
+#record-btn:hover { background: #a07808; border-color: #a07808; }
+#record-btn.recording {
+ background: #c0392b;
+ border-color: #c0392b;
+ color: #fff;
+ animation: pulse-red 1.2s ease-in-out infinite;
+}
+@keyframes pulse-red {
+ 0% { box-shadow: 0 0 0 0 rgba(192,57,43,.5); }
+ 50% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
+ 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+}
+#record-btn-label {
+ font-size: .72rem;
+ color: #1a1108;
+ margin-bottom: 14px;
+ min-height: 18px;
+ font-weight: bold;
+}
+#rec-status {
+ font-size: .8rem;
+ color: #1a1108;
+ min-height: 20px;
+ margin-bottom: 10px;
+ font-weight: bold;
+ line-height: 1.5;
+}
+#mic-denied-box {
+ display: none;
+ background: #fff8ee;
+ border: 1px solid #d4af7a;
+ border-radius: 8px;
+ padding: 14px 16px;
+ margin-bottom: 12px;
+ text-align: left;
+}
+#mic-denied-box p {
+ font-size: .78rem;
+ color: #1a1108;
+ margin-bottom: 8px;
+ line-height: 1.6;
+ font-weight: bold;
+}
+#mic-denied-box ol {
+ font-size: .75rem;
+ color: #1a1108;
+ padding-left: 18px;
+ margin-bottom: 10px;
+ line-height: 1.8;
+ font-weight: bold;
+}
+#try-again-btn {
+ width: 100%;
+ padding: 9px;
+ border-radius: 7px;
+ border: none;
+ background: #b8860b;
+ color: #ffffff;
+ font-family: Georgia, serif;
+ font-size: .86rem;
+ font-weight: bold;
+ cursor: pointer;
+}
+#try-again-btn:hover { background: #a07808; }
+.rec-divider { border: none; border-top: 1px solid #e8dfc8; margin: 16px 0; }
+#playback-section { display: none; margin-top: 4px; }
+#playback-label {
+ font-size: .72rem;
+ font-weight: bold;
+ color: #1a1108;
+ text-transform: uppercase;
+ letter-spacing: .06em;
+ margin-bottom: 8px;
+}
+#audio-player { width: 100%; margin-bottom: 14px; accent-color: #b8860b; }
+.pb-btn {
+ width: 100%;
+ padding: 11px;
+ border-radius: 8px;
+ border: none;
+ font-family: Georgia, serif;
+ font-size: .9rem;
+ font-weight: bold;
+ cursor: pointer;
+ margin-bottom: 10px;
+ transition: opacity .2s;
+}
+.pb-btn:hover { opacity: .85; }
+#save-btn { background: #b8860b; color: #ffffff; }
+#rerecord-btn { background: #f5f0e8; border: 1px solid #d4af7a; color: #1a1108; }
+#save-status {
+ font-size: .78rem;
+ color: #1a1108;
+ min-height: 18px;
+ margin-top: 4px;
+ font-weight: bold;
+}
+#rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight: bold; }
+</style>
+</head>
+<body>
+<button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT53</div>
+<div id="recorder-card">
+ <h1>&#127908; Voice Recorder</h1>
+ <p id="recorder-subtitle">Record your personal message for your Trustees</p>
+ <div id="meter-wrap"><div id="meter-fill"></div></div>
+ <div id="timer-display">0:00</div>
+ <button id="record-btn" onclick="toggleRecording()">START</button>
+ <p id="record-btn-label">Press START to begin recording</p>
+ <div id="rec-status"></div>
+ <div id="mic-denied-box">
+ <p>&#9888; Microphone access was denied. To fix this:</p>
+ <ol>
+ <li>Click the lock icon in your browser address bar</li>
+ <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
+ <li>Check <strong>"Allow on every visit"</strong></li>
+ <li>Click <strong>Try Again</strong> below</li>
+ </ol>
+ <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
+ <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
+ </div>
+ <div id="playback-section">
+ <hr class="rec-divider">
+ <div id="playback-label">Review Your Recording</div>
+ <audio id="audio-player" controls></audio>
+ <button class="pb-btn" id="save-btn" onclick="saveRecording()">&#128190; Save to My Vault</button>
+ <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Re-record</button>
+ <div id="save-status"></div>
+ </div>
+ <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT53</div>
+</div>
+<button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
+<script>
+var mediaRecorder = null;
+var audioChunks = [];
+var audioBlob = null;
+var isRecording = false;
+var timerInterval = null;
+var timerSeconds = 0;
+var analyserNode = null;
+var meterInterval = null;
+var audioStream = null;
+
+function returnToMain() {
+ if (document.referrer && document.referrer.indexOf('script.google.com') !== -1) {
+ window.location.href = document.referrer;
+ return;
+ }
+ var base = window.location.href.split('?')[0];
+ if (base) {
+ window.location.href = base + '?domain=LEGAL&t=' + Date.now();
+ } else {
+ window.history.back();
+ }
+}
+
+function toggleRecording() {
+ if (!isRecording) { startRecording(); } else { stopRecording(); }
+}
+
+function startRecording() {
+ hideMicDenied();
+ setRecStatus('Requesting microphone access…');
+ navigator.mediaDevices.getUserMedia({ audio: true })
+ .then(function(stream) {
+ audioStream = stream;
+ var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+ var source = audioCtx.createMediaStreamSource(stream);
+ analyserNode = audioCtx.createAnalyser();
+ analyserNode.fftSize = 256;
+ source.connect(analyserNode);
+ startMeter();
+ mediaRecorder = new MediaRecorder(stream);
+ audioChunks = [];
+ mediaRecorder.addEventListener('dataavailable', function(e) {
+ if (e.data.size > 0) audioChunks.push(e.data);
+ });
+ mediaRecorder.addEventListener('stop', function() {
+ audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+ var url = URL.createObjectURL(audioBlob);
+ document.getElementById('audio-player').src = url;
+ document.getElementById('playback-section').style.display = 'block';
+ setRecStatus('Recording complete. Review and save below.');
+ });
+ mediaRecorder.start();
+ isRecording = true;
+ var btn = document.getElementById('record-btn');
+ btn.textContent = 'STOP';
+ btn.classList.add('recording');
+ document.getElementById('record-btn-label').textContent = 'Recording in progress…';
+ setRecStatus('Recording started — you may speak now.');
+ timerSeconds = 0;
+ updateTimerDisplay();
+ timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+ })
+ .catch(function() {
+ setRecStatus('');
+ showMicDenied();
+ });
+}
+
+function retryMic() { hideMicDenied(); startRecording(); }
+
+function stopRecording() {
+ if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+ if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
+ clearInterval(timerInterval);
+ clearInterval(meterInterval);
+ document.getElementById('meter-fill').style.width = '0%';
+ isRecording = false;
+ var btn = document.getElementById('record-btn');
+ btn.textContent = 'START';
+ btn.classList.remove('recording');
+ document.getElementById('record-btn-label').textContent = 'Press START to record again';
+}
+
+function startMeter() {
+ var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+ meterInterval = setInterval(function() {
+ analyserNode.getByteFrequencyData(dataArray);
+ var sum = 0;
+ for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
+ var pct = Math.min(100, (sum / dataArray.length / 128) * 100);
+ document.getElementById('meter-fill').style.width = pct + '%';
+ }, 80);
+}
+
+function updateTimerDisplay() {
+ var m = Math.floor(timerSeconds / 60);
+ var s = timerSeconds % 60;
+ document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function saveRecording() {
+ if (!audioBlob) { setSaveStatus('No recording to save.'); return; }
+ var btn = document.getElementById('save-btn');
+ btn.disabled = true;
+ setSaveStatus('Saving to your vault…');
+ var reader = new FileReader();
+ reader.onload = function(e) {
+ var base64 = e.target.result.split(',')[1];
+ var fileName = 'VoiceMessage_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+ google.script.run
+ .withSuccessHandler(function(r) {
+ if (r && r.success) {
+ setSaveStatus('✓ Voice message saved to your vault!');
+ btn.textContent = '✓ Saved';
+ btn.style.background = '#2d5a27';
+ } else {
+ setSaveStatus('Error saving: ' + (r && r.error ? r.error : 'Unknown error'));
+ btn.disabled = false;
+ }
+ })
+ .withFailureHandler(function() {
+ setSaveStatus('Error saving. Please try again.');
+ btn.disabled = false;
+ })
+ .saveVoiceRecording({ base64Data: base64, mimeType: 'audio/webm', fileName: fileName, subscriberEmail: '', trusteeNumber: '', durationSeconds: timerSeconds });
+ };
+ reader.readAsDataURL(audioBlob);
+}
+
+function reRecord() {
+ audioBlob = null; audioChunks = [];
+ timerSeconds = 0; updateTimerDisplay();
+ document.getElementById('audio-player').src = '';
+ document.getElementById('playback-section').style.display = 'none';
+ var sb = document.getElementById('save-btn');
+ sb.disabled = false; sb.textContent = '💾 Save to My Vault'; sb.style.background = '';
+ setRecStatus('Ready to record again. Press START.');
+ setSaveStatus('');
+ document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
+}
+
+function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
+function setSaveStatus(msg) { document.getElementById('save-status').textContent = msg; }
+function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
+function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
+</script>
+</body>
+</html>
