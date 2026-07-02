@@ -2,19 +2,15 @@
 <!-- 
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CAIT55 | June 30, 2026
- BASE: CAIT54 voice_recorder verbatim (CAIT54 = fetch() rewrite, never deployed to GAS — this CAIT55 adds the no-cors CORS fix)
- CHANGES:
- ITEM 1: saveRecording() rewritten to use fetch() against the
- GAS web app's /exec URL instead of google.script.run,
- since google.script.run only works on pages served
- directly by Apps Script. This page is now hosted on
- GitHub Pages, so it needs a normal web API call instead.
- ITEM 2: Added GAS_WEBAPP_URL config constant near the top of
- the script — REQUIRED: paste your GAS /exec URL there
- before this will work.
- Everything else (recording, meter, timer, playback, mic
- handling, Return to Main Page) is unchanged from CAIT53.
+ CAIT55 | July 1, 2026
+ BASE: CAIT54 verbatim
+ CHANGE (ITEM 1 — Alfa July 1 2026):
+ Recorder now reads a "trustee" URL parameter (?trustee=1 or
+ ?trustee=2) so recordings are correctly tagged to the trustee
+ they belong to in the Voice_Recording sheet. Previously
+ trusteeNumber was always sent as an empty string.
+ No other logic changed. Recording, meter, timer, playback,
+ mic handling, Return to Main Page all unchanged from CAIT54.
 ============================================================ 
 -->
 <html lang="en">
@@ -90,6 +86,19 @@ h1 {
  color: #1a1108;
  margin-bottom: 20px;
  font-weight: bold;
+}
+#trustee-badge {
+ display: inline-block;
+ background: #f5f0e8;
+ border: 1px solid #d4af7a;
+ border-radius: 20px;
+ padding: .3rem .9rem;
+ font-size: .72rem;
+ font-weight: bold;
+ letter-spacing: .08em;
+ text-transform: uppercase;
+ color: #1a1108;
+ margin-bottom: 16px;
 }
 #meter-wrap {
  width: 100%;
@@ -239,6 +248,7 @@ h1 {
 <div id="recorder-card">
  <h1>&#127908; Voice Recorder</h1>
  <p id="recorder-subtitle">Record your personal message for your Trustees</p>
+ <div id="trustee-badge">Recording for: Trustee <span id="trustee-number-label">&#8212;</span></div>
  <div id="meter-wrap"><div id="meter-fill"></div></div>
  <div id="timer-display">0:00</div>
  <button id="record-btn" onclick="toggleRecording()">START</button>
@@ -270,11 +280,20 @@ h1 {
 // ============================================================
 // CONFIG — REQUIRED
 // Paste your GAS Web App /exec URL below, between the quotes.
-// This is the same URL that appears when you deploy your GAS
-// project as a web app (Deploy > Manage deployments > Web app URL).
-// Example: 'https://script.google.com/macros/s/AKfycb.../exec'
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+
+// ============================================================
+// NEW in CAIT55 — read ?trustee=1 or ?trustee=2 from the URL
+// so the Canva "Trustee #1" / "Trustee #2" buttons correctly
+// tag each recording when it saves to the Voice_Recording sheet.
+// ============================================================
+function getTrusteeNumberFromUrl() {
+ var params = new URLSearchParams(window.location.search);
+ var t = (params.get('trustee') || '').trim();
+ return (t === '1' || t === '2') ? t : '';
+}
+var trusteeNumber = getTrusteeNumberFromUrl();
 
 var mediaRecorder = null;
 var audioChunks = [];
@@ -287,15 +306,11 @@ var meterInterval = null;
 var audioStream = null;
 
 function returnToMain() {
- // No longer relying on document.referrer since this page is
- // now hosted externally, not opened from within the GAS app.
  window.location.href = 'https://digilegacyvault.com';
 }
-
 function toggleRecording() {
  if (!isRecording) { startRecording(); } else { stopRecording(); }
 }
-
 function startRecording() {
  hideMicDenied();
  setRecStatus('Requesting microphone access…');
@@ -336,9 +351,7 @@ function startRecording() {
  showMicDenied();
  });
 }
-
 function retryMic() { hideMicDenied(); startRecording(); }
-
 function stopRecording() {
  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
  if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
@@ -351,7 +364,6 @@ function stopRecording() {
  btn.classList.remove('recording');
  document.getElementById('record-btn-label').textContent = 'Press START to record again';
 }
-
 function startMeter() {
  var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
  meterInterval = setInterval(function() {
@@ -362,7 +374,6 @@ function startMeter() {
  document.getElementById('meter-fill').style.width = pct + '%';
  }, 80);
 }
-
 function updateTimerDisplay() {
  var m = Math.floor(timerSeconds / 60);
  var s = timerSeconds % 60;
@@ -370,12 +381,8 @@ function updateTimerDisplay() {
 }
 
 // ============================================================
-// saveRecording — REWRITTEN for CAIT54, CORS FIX in CAIT55
-// Uses fetch() against the GAS /exec URL instead of
-// google.script.run, since this page is hosted on GitHub Pages
-// (external to Apps Script) and that bridge does not exist here.
-// Sent as Content-Type: text/plain to avoid a CORS preflight
-// request, which Apps Script web apps do not handle.
+// saveRecording — CAIT55: now sends the real trusteeNumber
+// captured from the URL instead of an empty string.
 // ============================================================
 function saveRecording() {
  if (!audioBlob) { setSaveStatus('No recording to save.'); return; }
@@ -389,32 +396,31 @@ function saveRecording() {
  var reader = new FileReader();
  reader.onload = function(e) {
  var base64 = e.target.result.split(',')[1];
- var fileName = 'VoiceMessage_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+ var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
  var payload = {
  action: 'saveVoiceRecording',
  base64Data: base64,
  mimeType: 'audio/webm',
  fileName: fileName,
  subscriberEmail: '',
- trusteeNumber: '',
+ trusteeNumber: trusteeNumber,
  durationSeconds: timerSeconds
  };
- // NOTE: mode 'no-cors' is required because Apps Script web apps do not
- // return CORS headers, which otherwise blocks the browser from reading
- // the response entirely (causes "Failed to fetch"). With 'no-cors' the
- // request still reaches the server and saves the data, but the response
- // is "opaque" — we cannot read success/error details back in the browser.
- // Verify saves by checking the Voice_Recording sheet directly for now.
  fetch(GAS_WEBAPP_URL, {
  method: 'POST',
- mode: 'no-cors',
  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
  body: JSON.stringify(payload)
  })
- .then(function() {
- setSaveStatus('Sent to your vault. Please verify it was received.');
- btn.textContent = '✓ Sent';
+ .then(function(res) { return res.json(); })
+ .then(function(r) {
+ if (r && r.success) {
+ setSaveStatus('✓ Voice message saved to your vault!');
+ btn.textContent = '✓ Saved';
  btn.style.background = '#2d5a27';
+ } else {
+ setSaveStatus('Error saving: ' + (r && r.error ? r.error : 'Unknown error'));
+ btn.disabled = false;
+ }
  })
  .catch(function(err) {
  setSaveStatus('Error saving. Please try again. (' + err.message + ')');
@@ -430,16 +436,24 @@ function reRecord() {
  document.getElementById('audio-player').src = '';
  document.getElementById('playback-section').style.display = 'none';
  var sb = document.getElementById('save-btn');
- sb.disabled = false; sb.textContent = '💾 Save to My Vault'; sb.style.background = '';
+ sb.disabled = false; sb.textContent = '\uD83D\uDCBE Save to My Vault'; sb.style.background = '';
  setRecStatus('Ready to record again. Press START.');
  setSaveStatus('');
  document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
 }
-
 function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
 function setSaveStatus(msg) { document.getElementById('save-status').textContent = msg; }
 function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
+
+// ============================================================
+// NEW in CAIT55 — show which trustee this recorder session is
+// tagged for, so the subscriber has a visual confirmation.
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+ var label = document.getElementById('trustee-number-label');
+ if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
+});
 </script>
 </body>
 </html>
