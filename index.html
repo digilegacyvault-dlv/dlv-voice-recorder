@@ -1,17 +1,26 @@
 <!DOCTYPE html>
-<!-- 
+<!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CAIT55 | July 1, 2026
- BASE: CAIT54 verbatim
- CHANGE (ITEM 1 — Alfa July 1 2026):
- Recorder now reads a "trustee" URL parameter (?trustee=1 or
- ?trustee=2) so recordings are correctly tagged to the trustee
- they belong to in the Voice_Recording sheet. Previously
- trusteeNumber was always sent as an empty string.
+ CAIT56 | July 2, 2026
+ BASE: CAIT55 verbatim
+ CHANGE (Sentinel Phase 1 — confirmed-save mechanism):
+ The save flow no longer trusts a fetch() response that Apps
+ Script can't reliably read cross-origin (CORS). Instead:
+ 1. A unique requestId is generated and embedded in the
+ filename before saving.
+ 2. The POST is sent in mode:'no-cors' (fire-and-forget,
+ required since GAS never returns CORS headers on POST).
+ 3. Immediately after, the page polls a new GAS doGet route
+ (action=checkVoiceSaved) via JSONP — which is NOT subject
+ to CORS — to confirm the row actually landed in the
+ Voice_Recording sheet. Up to 5 tries, 2 seconds apart.
+ 4. "Saved" only displays once the server confirms the write.
+ If verification times out, the person sees a clear message
+ and can retry — never a false "Saved" confirmation.
  No other logic changed. Recording, meter, timer, playback,
- mic handling, Return to Main Page all unchanged from CAIT54.
-============================================================ 
+ mic handling, Return to Main Page all unchanged from CAIT55.
+============================================================
 -->
 <html lang="en">
 <head>
@@ -41,8 +50,7 @@ body {
  border: none;
  border-radius: 30px;
  font-family: Georgia, serif;
- font-size: .78rem;
- font-weight: bold;
+ font-size: .78rem; font-weight: bold;
  letter-spacing: .06em;
  text-transform: uppercase;
  cursor: pointer;
@@ -85,8 +93,7 @@ h1 {
  font-size: .78rem;
  color: #1a1108;
  margin-bottom: 20px;
- font-weight: bold;
-}
+ font-weight: bold;}
 #trustee-badge {
  display: inline-block;
  background: #f5f0e8;
@@ -129,8 +136,7 @@ h1 {
  height: 90px;
  border-radius: 50%;
  border: 3px solid #b8860b;
- background: #b8860b;
- color: #ffffff;
+ background: #b8860b; color: #ffffff;
  font-size: .88rem;
  font-weight: bold;
  cursor: pointer;
@@ -173,8 +179,7 @@ h1 {
  display: none;
  background: #fff8ee;
  border: 1px solid #d4af7a;
- border-radius: 8px;
- padding: 14px 16px;
+ border-radius: 8px; padding: 14px 16px;
  margin-bottom: 12px;
  text-align: left;
 }
@@ -217,8 +222,7 @@ h1 {
  margin-bottom: 8px;
 }
 #audio-player { width: 100%; margin-bottom: 14px; accent-color: #b8860b; }
-.pb-btn {
- width: 100%;
+.pb-btn { width: 100%;
  padding: 11px;
  border-radius: 8px;
  border: none;
@@ -230,6 +234,7 @@ h1 {
  transition: opacity .2s;
 }
 .pb-btn:hover { opacity: .85; }
+.pb-btn:disabled { cursor: default; opacity: .7; }
 #save-btn { background: #b8860b; color: #ffffff; }
 #rerecord-btn { background: #f5f0e8; border: 1px solid #d4af7a; color: #1a1108; }
 #save-status {
@@ -239,16 +244,18 @@ h1 {
  margin-top: 4px;
  font-weight: bold;
 }
-#rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight: bold; }
+#rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight:
+bold; }
 </style>
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE RECORDER &nbsp;&middot;&nbsp; CAIT55</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE
+RECORDER &nbsp;&middot;&nbsp; CAIT56</div>
 <div id="recorder-card">
  <h1>&#127908; Voice Recorder</h1>
  <p id="recorder-subtitle">Record your personal message for your Trustees</p>
- <div id="trustee-badge">Recording for: Trustee <span id="trustee-number-label">&#8212;</span></div>
+ <div id="trustee-badge">Recording for: Trustee <span id="trustee-numberlabel">&#8212;</span></div>
  <div id="meter-wrap"><div id="meter-fill"></div></div>
  <div id="timer-display">0:00</div>
  <button id="record-btn" onclick="toggleRecording()">START</button>
@@ -257,36 +264,37 @@ h1 {
  <div id="mic-denied-box">
  <p>&#9888; Microphone access was denied. To fix this:</p>
  <ol>
- <li>Click the lock icon in your browser address bar</li>
- <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
+ <li>Click the lock icon in your browser address bar</li> <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
  <li>Check <strong>"Allow on every visit"</strong></li>
  <li>Click <strong>Try Again</strong> below</li>
  </ol>
- <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
+ <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab
+after granting permission.</p>
  <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
  </div>
  <div id="playback-section">
  <hr class="rec-divider">
  <div id="playback-label">Review Your Recording</div>
  <audio id="audio-player" controls></audio>
- <button class="pb-btn" id="save-btn" onclick="saveRecording()">&#128190; Save to My Vault</button>
- <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Re-record</button>
+ <button class="pb-btn" id="save-btn" onclick="saveRecording()">&#128190;
+Save to My Vault</button>
+ <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
  <div id="save-status"></div>
  </div>
- <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT55</div>
+ <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT56</div>
 </div>
-<button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
+<button id="return-btn" style="margin-top:14px;"
+onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
 // ============================================================
 // CONFIG — REQUIRED
 // Paste your GAS Web App /exec URL below, between the quotes.
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
-
 // ============================================================
-// NEW in CAIT55 — read ?trustee=1 or ?trustee=2 from the URL
-// so the Canva "Trustee #1" / "Trustee #2" buttons correctly
-// tag each recording when it saves to the Voice_Recording sheet.
+// Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
+// CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
+// correctly tag each recording when it saves to the sheet.
 // ============================================================
 function getTrusteeNumberFromUrl() {
  var params = new URLSearchParams(window.location.search);
@@ -294,9 +302,7 @@ function getTrusteeNumberFromUrl() {
  return (t === '1' || t === '2') ? t : '';
 }
 var trusteeNumber = getTrusteeNumberFromUrl();
-
-var mediaRecorder = null;
-var audioChunks = [];
+var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
 var timerInterval = null;
@@ -304,7 +310,6 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
-
 function returnToMain() {
  window.location.href = 'https://digilegacyvault.com';
 }
@@ -339,12 +344,12 @@ function startRecording() {
  isRecording = true;
  var btn = document.getElementById('record-btn');
  btn.textContent = 'STOP';
- btn.classList.add('recording');
- document.getElementById('record-btn-label').textContent = 'Recording in progress…';
+ btn.classList.add('recording'); document.getElementById('record-btn-label').textContent = 'Recording in progress…';
  setRecStatus('Recording started — you may speak now.');
  timerSeconds = 0;
  updateTimerDisplay();
- timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+ timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); },
+1000);
  })
  .catch(function() {
  setRecStatus('');
@@ -354,7 +359,8 @@ function startRecording() {
 function retryMic() { hideMicDenied(); startRecording(); }
 function stopRecording() {
  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
- if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
+ if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); });
+audioStream = null; }
  clearInterval(timerInterval);
  clearInterval(meterInterval);
  document.getElementById('meter-fill').style.width = '0%';
@@ -377,12 +383,82 @@ function startMeter() {
 function updateTimerDisplay() {
  var m = Math.floor(timerSeconds / 60);
  var s = timerSeconds % 60;
- document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+ document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '')
++ s;
 }
-
 // ============================================================
-// saveRecording — CAIT55: now sends the real trusteeNumber
-// captured from the URL instead of an empty string.
+// NEW in CAIT56 — JSONP helper
+// Loads a <script> tag pointing at the GAS doGet endpoint.
+// JSONP responses are NOT subject to the CORS restriction that
+// blocks reading fetch() responses from Apps Script, because
+// the browser treats it as a normal script load, not an XHR.
+// ============================================================
+function jsonpRequest(url, callbackName, timeoutMs) {
+ return new Promise(function(resolve, reject) {
+ var script = document.createElement('script');
+ var timeoutId;
+ function cleanup() {
+ clearTimeout(timeoutId);
+ try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+ if (script.parentNode) script.parentNode.removeChild(script);
+ }
+ window[callbackName] = function(data) {
+ cleanup();
+ resolve(data);
+ };
+ timeoutId = setTimeout(function() {
+ cleanup();
+ reject(new Error('Verification request timed out'));
+ }, timeoutMs || 8000);
+ script.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + callbackName;
+ script.onerror = function() {
+ cleanup();
+ reject(new Error('Verification script failed to load'));
+ };
+ document.body.appendChild(script);
+ });
+}
+// ============================================================
+// NEW in CAIT56 — confirmed-save verification with retry
+// Polls the GAS checkVoiceSaved route until the row is found,
+// or attempts run out. Only then does the UI show "Saved."
+// ============================================================
+function verifySaveWithRetry(requestId, attemptsLeft) {
+ var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
+ var url = GAS_WEBAPP_URL + '?action=checkVoiceSaved&requestId=' +
+encodeURIComponent(requestId);
+ var btn = document.getElementById('save-btn');
+ jsonpRequest(url, callbackName, 8000)
+ .then(function(data) {
+ if (data && data.success && data.found) {
+ setSaveStatus('✓ Voice message saved and verified in your vault!');
+ btn.textContent = '✓ Saved & Verified';
+ btn.style.background = '#2d5a27';
+ btn.disabled = true;
+ } else if (attemptsLeft > 0) {
+ setSaveStatus('Saving to your vault… verifying (' + attemptsLeft + ' left)');
+ setTimeout(function() { verifySaveWithRetry(requestId, attemptsLeft - 1); }, 2000);
+ } else {
+ setSaveStatus('Could not verify the save. Please check your connection and try again.');
+ btn.disabled = false;
+ }
+ })
+ .catch(function() {
+ if (attemptsLeft > 0) {
+ setTimeout(function() { verifySaveWithRetry(requestId, attemptsLeft - 1); }, 2000);
+ } else {
+ setSaveStatus('Could not verify the save. Please check your connection and try again.');
+ btn.disabled = false;
+ }
+ });
+}
+// ============================================================
+// saveRecording — CAIT56: confirmed-save mechanism
+// 1. Generates a unique requestId, embedded in the filename.
+// 2. POSTs in no-cors mode (required — GAS never returns CORS
+// headers on POST, so 'cors' mode always blocks reading it).
+// 3. Once the POST completes, polls checkVoiceSaved via JSONP
+// to confirm the row actually exists before showing "Saved."
 // ============================================================
 function saveRecording() {
  if (!audioBlob) { setSaveStatus('No recording to save.'); return; }
@@ -393,10 +469,12 @@ function saveRecording() {
  var btn = document.getElementById('save-btn');
  btn.disabled = true;
  setSaveStatus('Saving to your vault…');
+ var requestId = 'REQ' + Date.now() + Math.random().toString(36).substring(2, 8);
  var reader = new FileReader();
  reader.onload = function(e) {
  var base64 = e.target.result.split(',')[1];
- var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+ var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
+'_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
  var payload = {
  action: 'saveVoiceRecording',
  base64Data: base64,
@@ -408,47 +486,41 @@ function saveRecording() {
  };
  fetch(GAS_WEBAPP_URL, {
  method: 'POST',
+ mode: 'no-cors',
  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
  body: JSON.stringify(payload)
  })
- .then(function(res) { return res.json(); })
- .then(function(r) {
- if (r && r.success) {
- setSaveStatus('✓ Voice message saved to your vault!');
- btn.textContent = '✓ Saved';
- btn.style.background = '#2d5a27';
- } else {
- setSaveStatus('Error saving: ' + (r && r.error ? r.error : 'Unknown error'));
- btn.disabled = false;
- }
+ .then(function() {
+ setSaveStatus('Save sent. Verifying…');
+ setTimeout(function() { verifySaveWithRetry(requestId, 5); }, 1500);
  })
  .catch(function(err) {
- setSaveStatus('Error saving. Please try again. (' + err.message + ')');
+ setSaveStatus('Error sending save request. (' + err.message + ')');
  btn.disabled = false;
  });
  };
  reader.readAsDataURL(audioBlob);
 }
-
 function reRecord() {
  audioBlob = null; audioChunks = [];
  timerSeconds = 0; updateTimerDisplay();
  document.getElementById('audio-player').src = '';
  document.getElementById('playback-section').style.display = 'none';
  var sb = document.getElementById('save-btn');
- sb.disabled = false; sb.textContent = '\uD83D\uDCBE Save to My Vault'; sb.style.background = '';
+ sb.disabled = false; sb.textContent = '\uD83D\uDCBE Save to My Vault';
+sb.style.background = '';
  setRecStatus('Ready to record again. Press START.');
  setSaveStatus('');
  document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
 }
-function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
-function setSaveStatus(msg) { document.getElementById('save-status').textContent = msg; }
-function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
-function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
-
+function setRecStatus(msg) { document.getElementById('rec-status').textContent
+= msg; }
+function setSaveStatus(msg) { document.getElementById('savestatus').textContent = msg; }
+function showMicDenied() { document.getElementById('mic-deniedbox').style.display = 'block'; }
+function hideMicDenied() { document.getElementById('mic-deniedbox').style.display = 'none'; }
 // ============================================================
-// NEW in CAIT55 — show which trustee this recorder session is
-// tagged for, so the subscriber has a visual confirmation.
+// Show which trustee this recorder session is tagged for —
+// unchanged from CAIT55.
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
  var label = document.getElementById('trustee-number-label');
