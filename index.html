@@ -2,24 +2,22 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CAIT56 | July 2, 2026
- BASE: CAIT55 verbatim
- CHANGE (Sentinel Phase 1 — confirmed-save mechanism):
- The save flow no longer trusts a fetch() response that Apps
- Script can't reliably read cross-origin (CORS). Instead:
- 1. A unique requestId is generated and embedded in the
- filename before saving.
- 2. The POST is sent in mode:'no-cors' (fire-and-forget,
- required since GAS never returns CORS headers on POST).
- 3. Immediately after, the page polls a new GAS doGet route
- (action=checkVoiceSaved) via JSONP — which is NOT subject
- to CORS — to confirm the row actually landed in the
- Voice_Recording sheet. Up to 5 tries, 2 seconds apart.
- 4. "Saved" only displays once the server confirms the write.
- If verification times out, the person sees a clear message
- and can retry — never a false "Saved" confirmation.
- No other logic changed. Recording, meter, timer, playback,
- mic handling, Return to Main Page all unchanged from CAIT55.
+ CAIT57 | July 3, 2026
+ BASE: CAIT56 verbatim
+ CHANGE (trustee badge display fix):
+ The on-screen "Recording for: Trustee —" badge never updated
+ to show the actual trustee number, even when ?trustee=1 or
+ ?trustee=2 was correctly present in the URL. Root cause: the
+ HTML span had id="trustee-numberlabel" while the JS looked
+ for id="trustee-number-label" (missing hyphen) — the mismatch
+ meant getElementById always returned null, so the badge stayed
+ on its default placeholder. This was a display-only bug; the
+ trustee value itself was still being read correctly from the
+ URL and still saved correctly to the sheet.
+ Fix: the HTML span id now matches the JS lookup exactly.
+ No other logic changed. All CAIT56 confirmed-save/Sentinel
+ Phase 1 mechanics (requestId, no-cors POST, JSONP verification)
+ are unchanged from CAIT56.
 ============================================================
 -->
 <html lang="en">
@@ -251,11 +249,11 @@ bold; }
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE
-RECORDER &nbsp;&middot;&nbsp; CAIT56</div>
+RECORDER &nbsp;&middot;&nbsp; CAIT57</div>
 <div id="recorder-card">
  <h1>&#127908; Voice Recorder</h1>
  <p id="recorder-subtitle">Record your personal message for your Trustees</p>
- <div id="trustee-badge">Recording for: Trustee <span id="trustee-numberlabel">&#8212;</span></div>
+ <div id="trustee-badge">Recording for: Trustee <span id="trustee-number-label">&#8212;</span></div>
  <div id="meter-wrap"><div id="meter-fill"></div></div>
  <div id="timer-display">0:00</div>
  <button id="record-btn" onclick="toggleRecording()">START</button>
@@ -281,7 +279,7 @@ Save to My Vault</button>
  <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
  <div id="save-status"></div>
  </div>
- <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT56</div>
+ <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT57</div>
 </div>
 <button id="return-btn" style="margin-top:14px;"
 onclick="returnToMain()">&#8592; Return to Main Page</button>
