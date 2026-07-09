@@ -2,22 +2,37 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CAIT57 | July 3, 2026
- BASE: CAIT56 verbatim
- CHANGE (trustee badge display fix):
- The on-screen "Recording for: Trustee —" badge never updated
- to show the actual trustee number, even when ?trustee=1 or
- ?trustee=2 was correctly present in the URL. Root cause: the
- HTML span had id="trustee-numberlabel" while the JS looked
- for id="trustee-number-label" (missing hyphen) — the mismatch
- meant getElementById always returned null, so the badge stayed
- on its default placeholder. This was a display-only bug; the
- trustee value itself was still being read correctly from the
- URL and still saved correctly to the sheet.
- Fix: the HTML span id now matches the JS lookup exactly.
- No other logic changed. All CAIT56 confirmed-save/Sentinel
- Phase 1 mechanics (requestId, no-cors POST, JSONP verification)
- are unchanged from CAIT56.
+ IT61 | July 8, 2026
+ BASE: IT60 verbatim, plus the following two fixes.
+
+ FIX 1 — "recording function not working":
+ The startRecording() getUserMedia .catch() swallowed the real
+ error and always called showMicDenied(), even for failures that
+ have nothing to do with permission (mic in use by another app/
+ tab, no mic present, etc.). That alone was misleading, but there
+ was a second, worse problem underneath it: showMicDenied(),
+ hideMicDenied(), and setSendStatus() were calling
+ getElementById() with IDs that don't match the actual elements
+ ('mic-deniedbox' instead of 'mic-denied-box', 'sendstatus'
+ instead of 'send-status') — the exact class of bug the IT59
+ comment claimed was already fixed. getElementById() on a
+ mismatched ID returns null, so calling .style.display or
+ .textContent on it throws, and since retryMic() calls
+ hideMicDenied() BEFORE startRecording(), that throw silently
+ killed the Try Again button — recording could never restart
+ after the first failure. All getElementById() calls in this
+ file are now normalized to the IDs actually defined in the CSS/
+ HTML ('record-btn-label', 'mic-denied-box', 'send-status'), and
+ the .catch() now reports the real error (permission vs. device-
+ busy vs. no-device) instead of a generic message.
+
+ FIX 2 — nothing else changed. Signature capture, sendNomination(),
+ and verifySendWithRetry() are IT60 logic untouched.
+
+ IMPORTANT: GAS_WEBAPP_URL below was retyped from a PDF export of
+ this file. Double-check it against your live file character-for-
+ character before deploying — a single dropped character here
+ would silently break every send.
 ============================================================
 -->
 <html lang="en">
@@ -28,279 +43,356 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
- font-family: Georgia, 'Times New Roman', serif;
- background: #f5f0e8;
- color: #1a1108;
- min-height: 100vh;
- display: flex;
- flex-direction: column;
- align-items: center;
- justify-content: center;
- padding: 24px;
+  font-family: Georgia, 'Times New Roman', serif;
+  background: #f5f0e8;
+  color: #1a1108;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 #return-btn {
- display: inline-flex;
- align-items: center;
- gap: .5rem;
- padding: .5rem 1.2rem;
- background: #1a1108;
- color: #ffffff !important;
- border: none;
- border-radius: 30px;
- font-family: Georgia, serif;
- font-size: .78rem; font-weight: bold;
- letter-spacing: .06em;
- text-transform: uppercase;
- cursor: pointer;
- margin-bottom: 12px;
- transition: opacity .2s;
- text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1.2rem;
+  background: #1a1108;
+  color: #ffffff !important;
+  border: none;
+  border-radius: 30px;
+  font-family: Georgia, serif;
+  font-size: .78rem; font-weight: bold;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: opacity .2s;
+  text-decoration: none;
 }
 #return-btn:hover { opacity: .82; }
 #rec-topbar {
- background: #1a1108;
- color: #f5f0e8;
- width: 100%;
- max-width: 500px;
- border-radius: 8px 8px 0 0;
- padding: 9px 18px;
- font-size: .72rem;
- font-weight: bold;
- letter-spacing: .09em;
- text-align: center;
- color: #d4af7a;
+  background: #1a1108;
+  color: #f5f0e8;
+  width: 100%;
+  max-width: 500px;
+  border-radius: 8px 8px 0 0;
+  padding: 9px 18px;
+  font-size: .72rem;
+  font-weight: bold;
+  letter-spacing: .09em;
+  text-align: center;
+  color: #d4af7a;
 }
 #recorder-card {
- background: #ffffff;
- border: 1px solid #d4af7a;
- border-top: none;
- border-radius: 0 0 12px 12px;
- padding: 28px 28px 24px;
- width: 100%;
- max-width: 500px;
- text-align: center;
- box-shadow: 0 4px 18px rgba(26,17,8,.10);
+  background: #ffffff;
+  border: 1px solid #d4af7a;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 28px 28px 24px;
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 4px 18px rgba(26,17,8,.10);
 }
 h1 {
- font-size: 1.25rem;
- color: #1a1108;
- margin-bottom: 4px;
- font-weight: bold;
+  font-size: 1.25rem;
+  color: #1a1108;
+  margin-bottom: 4px;
+  font-weight: bold;
 }
 #recorder-subtitle {
- font-size: .78rem;
- color: #1a1108;
- margin-bottom: 20px;
- font-weight: bold;}
+  font-size: .78rem;
+  color: #1a1108;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
 #trustee-badge {
- display: inline-block;
- background: #f5f0e8;
- border: 1px solid #d4af7a;
- border-radius: 20px;
- padding: .3rem .9rem;
- font-size: .72rem;
- font-weight: bold;
- letter-spacing: .08em;
- text-transform: uppercase;
- color: #1a1108;
- margin-bottom: 16px;
+  display: inline-block;
+  background: #f5f0e8;
+  border: 1px solid #d4af7a;
+  border-radius: 20px;
+  padding: .3rem .9rem;
+  font-size: .72rem;
+  font-weight: bold;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #1a1108;
+  margin-bottom: 16px;
 }
 #meter-wrap {
- width: 100%;
- height: 9px;
- background: #f5f0e8;
- border-radius: 5px;
- overflow: hidden;
- margin-bottom: 16px;
- border: 1px solid #d4af7a;
+  width: 100%;
+  height: 9px;
+  background: #f5f0e8;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid #d4af7a;
 }
 #meter-fill {
- height: 100%;
- width: 0%;
- background: linear-gradient(90deg, #5a9a50, #b8860b, #c0392b);
- transition: width .08s;
- border-radius: 5px;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #5a9a50, #b8860b, #c0392b);
+  transition: width .08s;
+  border-radius: 5px;
 }
 #timer-display {
- font-size: 2.6rem;
- font-weight: bold;
- color: #b8860b;
- letter-spacing: .1em;
- margin-bottom: 18px;
- font-variant-numeric: tabular-nums;
+  font-size: 2.6rem;
+  font-weight: bold;
+  color: #b8860b;
+  letter-spacing: .1em;
+  margin-bottom: 18px;
+  font-variant-numeric: tabular-nums;
 }
 #record-btn {
- width: 90px;
- height: 90px;
- border-radius: 50%;
- border: 3px solid #b8860b;
- background: #b8860b; color: #ffffff;
- font-size: .88rem;
- font-weight: bold;
- cursor: pointer;
- font-family: Georgia, serif;
- transition: background .2s, border-color .2s;
- margin: 0 auto 10px;
- display: flex;
- align-items: center;
- justify-content: center;
- letter-spacing: .04em;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 3px solid #b8860b;
+  background: #b8860b; color: #ffffff;
+  font-size: .88rem;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  transition: background .2s, border-color .2s;
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: .04em;
 }
 #record-btn:hover { background: #a07808; border-color: #a07808; }
 #record-btn.recording {
- background: #c0392b;
- border-color: #c0392b;
- color: #fff;
- animation: pulse-red 1.2s ease-in-out infinite;
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+  animation: pulse-red 1.2s ease-in-out infinite;
 }
 @keyframes pulse-red {
- 0% { box-shadow: 0 0 0 0 rgba(192,57,43,.5); }
- 50% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
- 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+  0% { box-shadow: 0 0 0 0 rgba(192,57,43,.5); }
+  50% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
+  100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
 }
 #record-btn-label {
- font-size: .72rem;
- color: #1a1108;
- margin-bottom: 14px;
- min-height: 18px;
- font-weight: bold;
+  font-size: .72rem;
+  color: #1a1108;
+  margin-bottom: 14px;
+  min-height: 18px;
+  font-weight: bold;
 }
 #rec-status {
- font-size: .8rem;
- color: #1a1108;
- min-height: 20px;
- margin-bottom: 10px;
- font-weight: bold;
- line-height: 1.5;
+  font-size: .8rem;
+  color: #1a1108;
+  min-height: 20px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  line-height: 1.5;
 }
 #mic-denied-box {
- display: none;
- background: #fff8ee;
- border: 1px solid #d4af7a;
- border-radius: 8px; padding: 14px 16px;
- margin-bottom: 12px;
- text-align: left;
+  display: none;
+  background: #fff8ee;
+  border: 1px solid #d4af7a;
+  border-radius: 8px; padding: 14px 16px;
+  margin-bottom: 12px;
+  text-align: left;
 }
 #mic-denied-box p {
- font-size: .78rem;
- color: #1a1108;
- margin-bottom: 8px;
- line-height: 1.6;
- font-weight: bold;
+  font-size: .78rem;
+  color: #1a1108;
+  margin-bottom: 8px;
+  line-height: 1.6;
+  font-weight: bold;
 }
 #mic-denied-box ol {
- font-size: .75rem;
- color: #1a1108;
- padding-left: 18px;
- margin-bottom: 10px;
- line-height: 1.8;
- font-weight: bold;
+  font-size: .75rem;
+  color: #1a1108;
+  padding-left: 18px;
+  margin-bottom: 10px;
+  line-height: 1.8;
+  font-weight: bold;
 }
 #try-again-btn {
- width: 100%;
- padding: 9px;
- border-radius: 7px;
- border: none;
- background: #b8860b;
- color: #ffffff;
- font-family: Georgia, serif;
- font-size: .86rem;
- font-weight: bold;
- cursor: pointer;
+  width: 100%;
+  padding: 9px;
+  border-radius: 7px;
+  border: none;
+  background: #b8860b;
+  color: #ffffff;
+  font-family: Georgia, serif;
+  font-size: .86rem;
+  font-weight: bold;
+  cursor: pointer;
 }
 #try-again-btn:hover { background: #a07808; }
 .rec-divider { border: none; border-top: 1px solid #e8dfc8; margin: 16px 0; }
+.section-label {
+  font-size: .72rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+  text-align: left;
+}
+#letter-textarea-recorder {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  font-family: Georgia, serif;
+  font-size: .82rem;
+  color: #1a1108;
+  background: #fff;
+  resize: vertical;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+#signature-canvas {
+  width: 100%;
+  max-width: 400px;
+  height: 140px;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  background: #fffdf7;
+  touch-action: none;
+  cursor: crosshair;
+  display: block;
+  margin: 0 auto;
+}
+#clear-signature-btn {
+  margin-top: 8px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid #d4af7a;
+  background: #f5f0e8;
+  color: #1a1108;
+  font-family: Georgia, serif;
+  font-size: .75rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+#clear-signature-btn:hover { background: #ede5d4; }
 #playback-section { display: none; margin-top: 4px; }
 #playback-label {
- font-size: .72rem;
- font-weight: bold;
- color: #1a1108;
- text-transform: uppercase;
- letter-spacing: .06em;
- margin-bottom: 8px;
+  font-size: .72rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
 }
 #audio-player { width: 100%; margin-bottom: 14px; accent-color: #b8860b; }
 .pb-btn { width: 100%;
- padding: 11px;
- border-radius: 8px;
- border: none;
- font-family: Georgia, serif;
- font-size: .9rem;
- font-weight: bold;
- cursor: pointer;
- margin-bottom: 10px;
- transition: opacity .2s;
+  padding: 11px;
+  border-radius: 8px;
+  border: none;
+  font-family: Georgia, serif;
+  font-size: .9rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: opacity .2s;
 }
 .pb-btn:hover { opacity: .85; }
 .pb-btn:disabled { cursor: default; opacity: .7; }
-#save-btn { background: #b8860b; color: #ffffff; }
+#send-btn { background: #b8860b; color: #ffffff; }
 #rerecord-btn { background: #f5f0e8; border: 1px solid #d4af7a; color: #1a1108; }
-#save-status {
- font-size: .78rem;
- color: #1a1108;
- min-height: 18px;
- margin-top: 4px;
- font-weight: bold;
+#send-status {
+  font-size: .78rem;
+  color: #1a1108;
+  min-height: 18px;
+  margin-top: 4px;
+  font-weight: bold;
 }
-#rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight:
-bold; }
+#rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight: bold; }
 </style>
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; VOICE
-RECORDER &nbsp;&middot;&nbsp; CAIT57</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT61</div>
 <div id="recorder-card">
- <h1>&#127908; Voice Recorder</h1>
- <p id="recorder-subtitle">Record your personal message for your Trustees</p>
- <div id="trustee-badge">Recording for: Trustee <span id="trustee-number-label">&#8212;</span></div>
- <div id="meter-wrap"><div id="meter-fill"></div></div>
- <div id="timer-display">0:00</div>
- <button id="record-btn" onclick="toggleRecording()">START</button>
- <p id="record-btn-label">Press START to begin recording</p>
- <div id="rec-status"></div>
- <div id="mic-denied-box">
- <p>&#9888; Microphone access was denied. To fix this:</p>
- <ol>
- <li>Click the lock icon in your browser address bar</li> <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
- <li>Check <strong>"Allow on every visit"</strong></li>
- <li>Click <strong>Try Again</strong> below</li>
- </ol>
- <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab
-after granting permission.</p>
- <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
- </div>
- <div id="playback-section">
- <hr class="rec-divider">
- <div id="playback-label">Review Your Recording</div>
- <audio id="audio-player" controls></audio>
- <button class="pb-btn" id="save-btn" onclick="saveRecording()">&#128190;
-Save to My Vault</button>
- <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
- <div id="save-status"></div>
- </div>
- <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; CAIT57</div>
+  <h1>&#9997; Trustee Nomination</h1>
+  <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
+  <div id="trustee-badge">Nominating: Trustee <span id="trustee-number-label">&#8212;</span> <span id="trustee-name-label"></span></div>
+  <hr class="rec-divider">
+  <div class="section-label">&#128221; Review Your Letter</div>
+  <textarea id="letter-textarea-recorder"></textarea>
+  <hr class="rec-divider">
+  <div class="section-label">&#9999; Sign Your Letter</div>
+  <canvas id="signature-canvas" width="400" height="140"></canvas>
+  <button id="clear-signature-btn" onclick="clearSignature()">&#8635; Clear Signature</button>
+  <hr class="rec-divider">
+  <div class="section-label">&#127908; Record Your Voice Message</div>
+  <div id="meter-wrap"><div id="meter-fill"></div></div>
+  <div id="timer-display">0:00</div>
+  <button id="record-btn" onclick="toggleRecording()">START</button>
+  <p id="record-btn-label">Press START to begin recording</p>
+  <div id="rec-status"></div>
+  <div id="mic-denied-box">
+    <p>&#9888; Microphone access was denied. To fix this:</p>
+    <ol>
+      <li>Click the lock icon in your browser address bar</li>
+      <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
+      <li>Check <strong>"Allow on every visit"</strong></li>
+      <li>Click <strong>Try Again</strong> below</li>
+    </ol>
+    <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
+    <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
+  </div>
+  <div id="playback-section">
+    <hr class="rec-divider">
+    <div id="playback-label">Review Your Recording</div>
+    <audio id="audio-player" controls></audio>
+    <button class="pb-btn" id="send-btn" onclick="sendNomination()">&#128231; Send Nomination</button>
+    <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
+    <div id="send-status"></div>
+  </div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT61</div>
 </div>
-<button id="return-btn" style="margin-top:14px;"
-onclick="returnToMain()">&#8592; Return to Main Page</button>
+<button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
 // ============================================================
 // CONFIG — REQUIRED
-// Paste your GAS Web App /exec URL below, between the quotes.
+// Verify this exact string against your live deployment URL.
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
-// ============================================================
-// Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
-// CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
-// correctly tag each recording when it saves to the sheet.
-// ============================================================
+
 function getTrusteeNumberFromUrl() {
- var params = new URLSearchParams(window.location.search);
- var t = (params.get('trustee') || '').trim();
- return (t === '1' || t === '2') ? t : '';
+  var params = new URLSearchParams(window.location.search);
+  var t = (params.get('trustee') || '').trim();
+  return (t === '1' || t === '2') ? t : '';
 }
+function getSubscriberEmailFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('subscriberEmail') || '').trim();
+}
+function getSubscriberNameFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('subscriberName') || '').trim();
+}
+function getTrusteeNameFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('trusteeName') || '').trim();
+}
+function getTrusteeEmailFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('trusteeEmail') || '').trim();
+}
+function getLetterBodyFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('letterBody') || '');
+}
+
 var trusteeNumber = getTrusteeNumberFromUrl();
-var mediaRecorder = null;var audioChunks = [];
+var subscriberEmail = getSubscriberEmailFromUrl();
+var subscriberName = getSubscriberNameFromUrl();
+var trusteeName = getTrusteeNameFromUrl();
+var trusteeEmail = getTrusteeEmailFromUrl();
+var letterBodyFromUrl = getLetterBodyFromUrl();
+
+var mediaRecorder = null; var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
 var timerInterval = null;
@@ -308,221 +400,299 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
+var sigCanvas = null;
+var sigCtx = null;
+var isDrawingSignature = false;
+var hasDrawnSignature = false;
+
 function returnToMain() {
- window.location.href = 'https://digilegacyvault.com';
+  window.location.href = 'https://digilegacyvault.com';
 }
+
 function toggleRecording() {
- if (!isRecording) { startRecording(); } else { stopRecording(); }
+  if (!isRecording) { startRecording(); } else { stopRecording(); }
 }
+
 function startRecording() {
- hideMicDenied();
- setRecStatus('Requesting microphone access…');
- navigator.mediaDevices.getUserMedia({ audio: true })
- .then(function(stream) {
- audioStream = stream;
- var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
- var source = audioCtx.createMediaStreamSource(stream);
- analyserNode = audioCtx.createAnalyser();
- analyserNode.fftSize = 256;
- source.connect(analyserNode);
- startMeter();
- mediaRecorder = new MediaRecorder(stream);
- audioChunks = [];
- mediaRecorder.addEventListener('dataavailable', function(e) {
- if (e.data.size > 0) audioChunks.push(e.data);
- });
- mediaRecorder.addEventListener('stop', function() {
- audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
- var url = URL.createObjectURL(audioBlob);
- document.getElementById('audio-player').src = url;
- document.getElementById('playback-section').style.display = 'block';
- setRecStatus('Recording complete. Review and save below.');
- });
- mediaRecorder.start();
- isRecording = true;
- var btn = document.getElementById('record-btn');
- btn.textContent = 'STOP';
- btn.classList.add('recording'); document.getElementById('record-btn-label').textContent = 'Recording in progress…';
- setRecStatus('Recording started — you may speak now.');
- timerSeconds = 0;
- updateTimerDisplay();
- timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); },
-1000);
- })
- .catch(function() {
- setRecStatus('');
- showMicDenied();
- });
+  hideMicDenied();
+  setRecStatus('Requesting microphone access…');
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function(stream) {
+      audioStream = stream;
+      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = audioCtx.createMediaStreamSource(stream);
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 256;
+      source.connect(analyserNode);
+      startMeter();
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      mediaRecorder.addEventListener('dataavailable', function(e) {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      });
+      mediaRecorder.addEventListener('stop', function() {
+        audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        var url = URL.createObjectURL(audioBlob);
+        document.getElementById('audio-player').src = url;
+        document.getElementById('playback-section').style.display = 'block';
+        setRecStatus('Recording complete. Review and save below.');
+      });
+      mediaRecorder.start();
+      isRecording = true;
+      var btn = document.getElementById('record-btn');
+      btn.textContent = 'STOP';
+      btn.classList.add('recording');
+      document.getElementById('record-btn-label').textContent = 'Recording in progress…';
+      setRecStatus('Recording started — you may speak now.');
+      timerSeconds = 0;
+      updateTimerDisplay();
+      timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+    })
+    // FIX (IT61): capture the real error instead of discarding it.
+    // Every getUserMedia rejection used to be treated as "permission
+    // denied," which is wrong and sends the user chasing browser
+    // settings that are already correct (as in the July 7 screenshot).
+    .catch(function(err) {
+      setRecStatus('');
+      var name = err && err.name ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+        showMicDenied();
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setRecStatus('No microphone was found on this device. Please connect one and try again.');
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        setRecStatus('Your microphone is already in use by another app or browser tab. Close it, then press START again.');
+      } else {
+        setRecStatus('Could not start recording (' + (name || 'unknown error') + '). Please reload this page and try again.');
+      }
+    });
 }
+
 function retryMic() { hideMicDenied(); startRecording(); }
+
 function stopRecording() {
- if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
- if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); });
-audioStream = null; }
- clearInterval(timerInterval);
- clearInterval(meterInterval);
- document.getElementById('meter-fill').style.width = '0%';
- isRecording = false;
- var btn = document.getElementById('record-btn');
- btn.textContent = 'START';
- btn.classList.remove('recording');
- document.getElementById('record-btn-label').textContent = 'Press START to record again';
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
+  clearInterval(timerInterval);
+  clearInterval(meterInterval);
+  document.getElementById('meter-fill').style.width = '0%';
+  isRecording = false;
+  var btn = document.getElementById('record-btn');
+  btn.textContent = 'START';
+  btn.classList.remove('recording');
+  document.getElementById('record-btn-label').textContent = 'Press START to record again';
 }
+
 function startMeter() {
- var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
- meterInterval = setInterval(function() {
- analyserNode.getByteFrequencyData(dataArray);
- var sum = 0;
- for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
- var pct = Math.min(100, (sum / dataArray.length / 128) * 100);
- document.getElementById('meter-fill').style.width = pct + '%';
- }, 80);
+  var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+  meterInterval = setInterval(function() {
+    analyserNode.getByteFrequencyData(dataArray);
+    var sum = 0;
+    for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
+    var pct = Math.min(100, (sum / dataArray.length / 128) * 100);
+    document.getElementById('meter-fill').style.width = pct + '%';
+  }, 80);
 }
+
 function updateTimerDisplay() {
- var m = Math.floor(timerSeconds / 60);
- var s = timerSeconds % 60;
- document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '')
-+ s;
+  var m = Math.floor(timerSeconds / 60);
+  var s = timerSeconds % 60;
+  document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
 }
-// ============================================================
-// NEW in CAIT56 — JSONP helper
-// Loads a <script> tag pointing at the GAS doGet endpoint.
-// JSONP responses are NOT subject to the CORS restriction that
-// blocks reading fetch() responses from Apps Script, because
-// the browser treats it as a normal script load, not an XHR.
-// ============================================================
+
+function initSignatureCanvas() {
+  sigCanvas = document.getElementById('signature-canvas');
+  if (!sigCanvas) return;
+  sigCtx = sigCanvas.getContext('2d');
+  sigCtx.strokeStyle = '#1a1108';
+  sigCtx.lineWidth = 2;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+
+  function getPos(e) {
+    var rect = sigCanvas.getBoundingClientRect();
+    var scaleX = sigCanvas.width / rect.width;
+    var scaleY = sigCanvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  sigCanvas.addEventListener('pointerdown', function(e) {
+    isDrawingSignature = true;
+    hasDrawnSignature = true;
+    var p = getPos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(p.x, p.y);
+    sigCanvas.setPointerCapture(e.pointerId);
+  });
+  sigCanvas.addEventListener('pointermove', function(e) {
+    if (!isDrawingSignature) return;
+    var p = getPos(e);
+    sigCtx.lineTo(p.x, p.y);
+    sigCtx.stroke();
+  });
+  sigCanvas.addEventListener('pointerup', function() { isDrawingSignature = false; });
+  sigCanvas.addEventListener('pointerleave', function() { isDrawingSignature = false; });
+}
+
+function clearSignature() {
+  if (!sigCtx || !sigCanvas) return;
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  hasDrawnSignature = false;
+}
+
 function jsonpRequest(url, callbackName, timeoutMs) {
- return new Promise(function(resolve, reject) {
- var script = document.createElement('script');
- var timeoutId;
- function cleanup() {
- clearTimeout(timeoutId);
- try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
- if (script.parentNode) script.parentNode.removeChild(script);
- }
- window[callbackName] = function(data) {
- cleanup();
- resolve(data);
- };
- timeoutId = setTimeout(function() {
- cleanup();
- reject(new Error('Verification request timed out'));
- }, timeoutMs || 8000);
- script.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + callbackName;
- script.onerror = function() {
- cleanup();
- reject(new Error('Verification script failed to load'));
- };
- document.body.appendChild(script);
- });
+  return new Promise(function(resolve, reject) {
+    var script = document.createElement('script');
+    var timeoutId;
+    function cleanup() {
+      clearTimeout(timeoutId);
+      try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+    timeoutId = setTimeout(function() {
+      cleanup();
+      reject(new Error('Verification request timed out'));
+    }, timeoutMs || 8000);
+    script.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + callbackName;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('Verification script failed to load'));
+    };
+    document.body.appendChild(script);
+  });
 }
-// ============================================================
-// NEW in CAIT56 — confirmed-save verification with retry
-// Polls the GAS checkVoiceSaved route until the row is found,
-// or attempts run out. Only then does the UI show "Saved."
-// ============================================================
-function verifySaveWithRetry(requestId, attemptsLeft) {
- var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
- var url = GAS_WEBAPP_URL + '?action=checkVoiceSaved&requestId=' +
-encodeURIComponent(requestId);
- var btn = document.getElementById('save-btn');
- jsonpRequest(url, callbackName, 8000)
- .then(function(data) {
- if (data && data.success && data.found) {
- setSaveStatus('✓ Voice message saved and verified in your vault!');
- btn.textContent = '✓ Saved & Verified';
- btn.style.background = '#2d5a27';
- btn.disabled = true;
- } else if (attemptsLeft > 0) {
- setSaveStatus('Saving to your vault… verifying (' + attemptsLeft + ' left)');
- setTimeout(function() { verifySaveWithRetry(requestId, attemptsLeft - 1); }, 2000);
- } else {
- setSaveStatus('Could not verify the save. Please check your connection and try again.');
- btn.disabled = false;
- }
- })
- .catch(function() {
- if (attemptsLeft > 0) {
- setTimeout(function() { verifySaveWithRetry(requestId, attemptsLeft - 1); }, 2000);
- } else {
- setSaveStatus('Could not verify the save. Please check your connection and try again.');
- btn.disabled = false;
- }
- });
+
+function verifySendWithRetry(requestId, attemptsLeft) {
+  var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
+  var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId);
+  var btn = document.getElementById('send-btn');
+  jsonpRequest(url, callbackName, 8000)
+    .then(function(data) {
+      if (data && data.success && data.found) {
+        setSendStatus('✓ Nomination sent to ' + (trusteeName || 'your trustee') + '!');
+        btn.textContent = '✓ Sent';
+        btn.style.background = '#2d5a27';
+        btn.disabled = true;
+      } else if (attemptsLeft > 0) {
+        setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
+        setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
+      } else {
+        setSendStatus('Could not verify the send. Please check your connection and try again.');
+        btn.disabled = false;
+      }
+    })
+    .catch(function() {
+      if (attemptsLeft > 0) {
+        setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
+      } else {
+        setSendStatus('Could not verify the send. Please check your connection and try again.');
+        btn.disabled = false;
+      }
+    });
 }
-// ============================================================
-// saveRecording — CAIT56: confirmed-save mechanism
-// 1. Generates a unique requestId, embedded in the filename.
-// 2. POSTs in no-cors mode (required — GAS never returns CORS
-// headers on POST, so 'cors' mode always blocks reading it).
-// 3. Once the POST completes, polls checkVoiceSaved via JSONP
-// to confirm the row actually exists before showing "Saved."
-// ============================================================
-function saveRecording() {
- if (!audioBlob) { setSaveStatus('No recording to save.'); return; }
- if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL.indexOf('PASTE_YOUR') !== -1) {
- setSaveStatus('Setup incomplete: GAS_WEBAPP_URL not configured.');
- return;
- }
- var btn = document.getElementById('save-btn');
- btn.disabled = true;
- setSaveStatus('Saving to your vault…');
- var requestId = 'REQ' + Date.now() + Math.random().toString(36).substring(2, 8);
- var reader = new FileReader();
- reader.onload = function(e) {
- var base64 = e.target.result.split(',')[1];
- var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
-'_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
- var payload = {
- action: 'saveVoiceRecording',
- base64Data: base64,
- mimeType: 'audio/webm',
- fileName: fileName,
- subscriberEmail: '',
- trusteeNumber: trusteeNumber,
- durationSeconds: timerSeconds
- };
- fetch(GAS_WEBAPP_URL, {
- method: 'POST',
- mode: 'no-cors',
- headers: { 'Content-Type': 'text/plain;charset=utf-8' },
- body: JSON.stringify(payload)
- })
- .then(function() {
- setSaveStatus('Save sent. Verifying…');
- setTimeout(function() { verifySaveWithRetry(requestId, 5); }, 1500);
- })
- .catch(function(err) {
- setSaveStatus('Error sending save request. (' + err.message + ')');
- btn.disabled = false;
- });
- };
- reader.readAsDataURL(audioBlob);
+
+function sendNomination() {
+  if (!audioBlob) { setSendStatus('No recording to send. Please record your voice message first.'); return; }
+  if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL.indexOf('PASTE_YOUR') !== -1) {
+    setSendStatus('Setup incomplete: GAS_WEBAPP_URL not configured.');
+    return;
+  }
+  if (!subscriberEmail) {
+    setSendStatus('Missing your email — please open this page again from the Trustees tab after entering your reply-to email.');
+    return;
+  }
+  if (!trusteeEmail) {
+    setSendStatus('Missing trustee email — please open this page again from the Trustees tab.');
+    return;
+  }
+  var letterText = document.getElementById('letter-textarea-recorder').value.trim();
+  if (!letterText) {
+    setSendStatus('Please review your letter above — it cannot be empty.');
+    return;
+  }
+  if (!hasDrawnSignature) {
+    setSendStatus('Please sign your letter above before sending.');
+    return;
+  }
+  var btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  setSendStatus('Sending your nomination…');
+  var requestId = 'TOK' + Date.now() + Math.random().toString(36).substring(2, 8);
+  var signatureDataUrl = sigCanvas ? sigCanvas.toDataURL('image/png') : '';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result.split(',')[1];
+    var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
+      '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+    var payload = {
+      action: 'sendTrusteeNomination',
+      base64Data: base64,
+      mimeType: 'audio/webm',
+      fileName: fileName,
+      subscriberEmail: subscriberEmail,
+      subscriberName: subscriberName,
+      trusteeNumber: trusteeNumber,
+      trusteeName: trusteeName,
+      trusteeEmail: trusteeEmail,
+      letterBody: letterText,
+      signatureDataUrl: signatureDataUrl,
+      clientRequestId: requestId,
+      durationSeconds: timerSeconds
+    };
+    fetch(GAS_WEBAPP_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function() {
+        setSendStatus('Nomination submitted. Verifying…');
+        setTimeout(function() { verifySendWithRetry(requestId, 5); }, 1500);
+      })
+      .catch(function(err) {
+        setSendStatus('Error sending request. (' + err.message + ')');
+        btn.disabled = false;
+      });
+  };
+  reader.readAsDataURL(audioBlob);
 }
+
 function reRecord() {
- audioBlob = null; audioChunks = [];
- timerSeconds = 0; updateTimerDisplay();
- document.getElementById('audio-player').src = '';
- document.getElementById('playback-section').style.display = 'none';
- var sb = document.getElementById('save-btn');
- sb.disabled = false; sb.textContent = '\uD83D\uDCBE Save to My Vault';
-sb.style.background = '';
- setRecStatus('Ready to record again. Press START.');
- setSaveStatus('');
- document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
+  audioBlob = null; audioChunks = [];
+  timerSeconds = 0; updateTimerDisplay();
+  document.getElementById('audio-player').src = '';
+  document.getElementById('playback-section').style.display = 'none';
+  var sb = document.getElementById('send-btn');
+  sb.disabled = false; sb.textContent = '📧 Send Nomination';
+  sb.style.background = '';
+  setRecStatus('Ready to record again. Press START.');
+  setSendStatus('');
+  document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
 }
-function setRecStatus(msg) { document.getElementById('rec-status').textContent
-= msg; }
-function setSaveStatus(msg) { document.getElementById('savestatus').textContent = msg; }
-function showMicDenied() { document.getElementById('mic-deniedbox').style.display = 'block'; }
-function hideMicDenied() { document.getElementById('mic-deniedbox').style.display = 'none'; }
-// ============================================================
-// Show which trustee this recorder session is tagged for —
-// unchanged from CAIT55.
-// ============================================================
+
+function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
+// FIX (IT61): was getElementById('sendstatus') — the missing
+// hyphen meant this always threw and silently killed whatever
+// ran after it (including, in some call paths, the actual send).
+function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
+// FIX (IT61): was getElementById('mic-deniedbox') in showMicDenied()
+// — the missing hyphen meant the box never actually appeared, and
+// because retryMic() calls hideMicDenied() before startRecording(),
+// the same bug silently broke the Try Again button.
+function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
+function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
+
 document.addEventListener('DOMContentLoaded', function() {
- var label = document.getElementById('trustee-number-label');
- if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
+  var label = document.getElementById('trustee-number-label');
+  if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
+  var nameLabel = document.getElementById('trustee-name-label');
+  if (nameLabel && trusteeName) nameLabel.textContent = '(' + trusteeName + ')';
+  var letterArea = document.getElementById('letter-textarea-recorder');
+  if (letterArea) letterArea.value = letterBodyFromUrl;
+  initSignatureCanvas();
 });
 </script>
 </body>
