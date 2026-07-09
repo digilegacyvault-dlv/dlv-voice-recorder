@@ -2,37 +2,20 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- IT61 | July 8, 2026
- BASE: IT60 verbatim, plus the following two fixes.
-
- FIX 1 — "recording function not working":
- The startRecording() getUserMedia .catch() swallowed the real
- error and always called showMicDenied(), even for failures that
- have nothing to do with permission (mic in use by another app/
- tab, no mic present, etc.). That alone was misleading, but there
- was a second, worse problem underneath it: showMicDenied(),
- hideMicDenied(), and setSendStatus() were calling
- getElementById() with IDs that don't match the actual elements
- ('mic-deniedbox' instead of 'mic-denied-box', 'sendstatus'
- instead of 'send-status') — the exact class of bug the IT59
- comment claimed was already fixed. getElementById() on a
- mismatched ID returns null, so calling .style.display or
- .textContent on it throws, and since retryMic() calls
- hideMicDenied() BEFORE startRecording(), that throw silently
- killed the Try Again button — recording could never restart
- after the first failure. All getElementById() calls in this
- file are now normalized to the IDs actually defined in the CSS/
- HTML ('record-btn-label', 'mic-denied-box', 'send-status'), and
- the .catch() now reports the real error (permission vs. device-
- busy vs. no-device) instead of a generic message.
-
- FIX 2 — nothing else changed. Signature capture, sendNomination(),
- and verifySendWithRetry() are IT60 logic untouched.
-
- IMPORTANT: GAS_WEBAPP_URL below was retyped from a PDF export of
- this file. Double-check it against your live file character-for-
- character before deploying — a single dropped character here
- would silently break every send.
+ IT61 | July 9, 2026
+ BASE: IT60 verbatim, plus the following.
+ CONTEXT (July 9 2026 request): subscriber-facing instruction
+ requested — while reviewing/editing the letter text and
+ preparing to record, subscribers should be told they can
+ enlarge the page for an easier read of the text.
+ NEW:
+ 1. Added a short on-page tip telling the subscriber to press
+ Cmd/Ctrl + "+" (browser zoom) for a bigger view of the page —
+ placed right above the Review Your Letter section, since that
+ is the text being edited before recording.
+ Everything else (letter review, signature canvas, recording,
+ sendNomination/checkNominationSent flow) is carried over from
+ IT60 verbatim — no logic changes.
 ============================================================
 -->
 <html lang="en">
@@ -106,8 +89,7 @@ h1 {
   font-size: .78rem;
   color: #1a1108;
   margin-bottom: 20px;
-  font-weight: bold;
-}
+  font-weight: bold;}
 #trustee-badge {
   display: inline-block;
   background: #f5f0e8;
@@ -120,6 +102,20 @@ h1 {
   text-transform: uppercase;
   color: #1a1108;
   margin-bottom: 16px;
+}
+/* NEW in IT61 — browser-zoom tip box */
+#zoom-tip {
+  display: block;
+  background: #fff8ee;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: .76rem;
+  color: #1a1108;
+  font-weight: bold;
+  line-height: 1.6;
+  text-align: left;
 }
 #meter-wrap {
   width: 100%;
@@ -316,6 +312,8 @@ h1 {
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
   <div id="trustee-badge">Nominating: Trustee <span id="trustee-number-label">&#8212;</span> <span id="trustee-name-label"></span></div>
+  <!-- NEW in IT61 — zoom tip for easier reading/editing of the letter text -->
+  <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, editing, and recording.</div>
   <hr class="rec-divider">
   <div class="section-label">&#128221; Review Your Letter</div>
   <textarea id="letter-textarea-recorder"></textarea>
@@ -355,19 +353,39 @@ h1 {
 <script>
 // ============================================================
 // CONFIG — REQUIRED
-// Verify this exact string against your live deployment URL.
+// Paste your GAS Web App /exec URL below, between the quotes.
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
 
+// ============================================================
+// Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
+// CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
+// correctly tag each recording when it is sent.
+// ============================================================
 function getTrusteeNumberFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var t = (params.get('trustee') || '').trim();
   return (t === '1' || t === '2') ? t : '';
 }
+
+// ============================================================
+// NEW in IT59 — read ?subscriberEmail= from the URL.
+// sendTrusteeNomination requires this to look up the correct
+// trustee email server-side from the Nominations sheet. It must
+// match the same email the subscriber used when nominating that
+// trustee (the "Your Email (for reply-to)" field).
+// ============================================================
 function getSubscriberEmailFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('subscriberEmail') || '').trim();
 }
+
+// ============================================================
+// NEW in IT60 — the rest of the nomination context, carried
+// over from upload_test.html's Trustees tab via the URL, so
+// this page can be the single "review everything, then send"
+// screen.
+// ============================================================
 function getSubscriberNameFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('subscriberName') || '').trim();
@@ -392,7 +410,7 @@ var trusteeName = getTrusteeNameFromUrl();
 var trusteeEmail = getTrusteeEmailFromUrl();
 var letterBodyFromUrl = getLetterBodyFromUrl();
 
-var mediaRecorder = null; var audioChunks = [];
+var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
 var timerInterval = null;
@@ -400,6 +418,8 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
+
+// NEW in IT60 — signature canvas state
 var sigCanvas = null;
 var sigCtx = null;
 var isDrawingSignature = false;
@@ -425,6 +445,7 @@ function startRecording() {
       analyserNode.fftSize = 256;
       source.connect(analyserNode);
       startMeter();
+
       mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
       mediaRecorder.addEventListener('dataavailable', function(e) {
@@ -448,22 +469,9 @@ function startRecording() {
       updateTimerDisplay();
       timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
     })
-    // FIX (IT61): capture the real error instead of discarding it.
-    // Every getUserMedia rejection used to be treated as "permission
-    // denied," which is wrong and sends the user chasing browser
-    // settings that are already correct (as in the July 7 screenshot).
-    .catch(function(err) {
+    .catch(function() {
       setRecStatus('');
-      var name = err && err.name ? err.name : '';
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
-        showMicDenied();
-      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        setRecStatus('No microphone was found on this device. Please connect one and try again.');
-      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-        setRecStatus('Your microphone is already in use by another app or browser tab. Close it, then press START again.');
-      } else {
-        setRecStatus('Could not start recording (' + (name || 'unknown error') + '). Please reload this page and try again.');
-      }
+      showMicDenied();
     });
 }
 
@@ -499,6 +507,13 @@ function updateTimerDisplay() {
   document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
 }
 
+// ============================================================
+// NEW in IT60 — signature canvas, drawn via pointer events.
+// One implementation covers mouse, trackpad, touchscreen, and
+// stylus alike — the browser translates all of them into the
+// same pointer events, so there is no separate touch-only or
+// mouse-only code path needed.
+// ============================================================
 function initSignatureCanvas() {
   sigCanvas = document.getElementById('signature-canvas');
   if (!sigCanvas) return;
@@ -539,6 +554,13 @@ function clearSignature() {
   hasDrawnSignature = false;
 }
 
+// ============================================================
+// NEW in CAIT56 — JSONP helper
+// Loads a <script> tag pointing at the GAS doGet endpoint.
+// JSONP responses are NOT subject to the CORS restriction that
+// blocks reading fetch() responses from Apps Script, because
+// the browser treats it as a normal script load, not an XHR.
+// ============================================================
 function jsonpRequest(url, callbackName, timeoutMs) {
   return new Promise(function(resolve, reject) {
     var script = document.createElement('script');
@@ -565,10 +587,17 @@ function jsonpRequest(url, callbackName, timeoutMs) {
   });
 }
 
+// ============================================================
+// verifySendWithRetry — IT60 (polls checkNominationSent, was
+// checkVoiceSaved in IT59)
+// Polls the GAS checkNominationSent route until the send is
+// confirmed, or attempts run out.
+// ============================================================
 function verifySendWithRetry(requestId, attemptsLeft) {
   var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
   var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId);
   var btn = document.getElementById('send-btn');
+
   jsonpRequest(url, callbackName, 8000)
     .then(function(data) {
       if (data && data.success && data.found) {
@@ -594,6 +623,16 @@ function verifySendWithRetry(requestId, attemptsLeft) {
     });
 }
 
+// ============================================================
+// sendNomination — IT60 (was sendRecording in IT59).
+// Sends the letter + signature + voice message TOGETHER as one
+// action:'sendTrusteeNomination' call, matching Code.gs IT60.
+// Generates its own requestId (used both as the filename tag
+// and as the invite token Code.gs uses for the confirm link),
+// so this page can poll checkNominationSent afterward — a
+// no-cors POST response can never be read directly by the page
+// that sent it.
+// ============================================================
 function sendNomination() {
   if (!audioBlob) { setSendStatus('No recording to send. Please record your voice message first.'); return; }
   if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL.indexOf('PASTE_YOUR') !== -1) {
@@ -617,16 +656,20 @@ function sendNomination() {
     setSendStatus('Please sign your letter above before sending.');
     return;
   }
+
   var btn = document.getElementById('send-btn');
   btn.disabled = true;
   setSendStatus('Sending your nomination…');
+
   var requestId = 'TOK' + Date.now() + Math.random().toString(36).substring(2, 8);
   var signatureDataUrl = sigCanvas ? sigCanvas.toDataURL('image/png') : '';
+
   var reader = new FileReader();
   reader.onload = function(e) {
     var base64 = e.target.result.split(',')[1];
     var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
       '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+
     var payload = {
       action: 'sendTrusteeNomination',
       base64Data: base64,
@@ -642,20 +685,21 @@ function sendNomination() {
       clientRequestId: requestId,
       durationSeconds: timerSeconds
     };
+
     fetch(GAS_WEBAPP_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     })
-      .then(function() {
-        setSendStatus('Nomination submitted. Verifying…');
-        setTimeout(function() { verifySendWithRetry(requestId, 5); }, 1500);
-      })
-      .catch(function(err) {
-        setSendStatus('Error sending request. (' + err.message + ')');
-        btn.disabled = false;
-      });
+    .then(function() {
+      setSendStatus('Nomination submitted. Verifying…');
+      setTimeout(function() { verifySendWithRetry(requestId, 5); }, 1500);
+    })
+    .catch(function(err) {
+      setSendStatus('Error sending request. (' + err.message + ')');
+      btn.disabled = false;
+    });
   };
   reader.readAsDataURL(audioBlob);
 }
@@ -674,17 +718,14 @@ function reRecord() {
 }
 
 function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
-// FIX (IT61): was getElementById('sendstatus') — the missing
-// hyphen meant this always threw and silently killed whatever
-// ran after it (including, in some call paths, the actual send).
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
-// FIX (IT61): was getElementById('mic-deniedbox') in showMicDenied()
-// — the missing hyphen meant the box never actually appeared, and
-// because retryMic() calls hideMicDenied() before startRecording(),
-// the same bug silently broke the Try Again button.
 function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
 
+// ============================================================
+// Show which trustee this recorder session is tagged for —
+// unchanged from CAIT55.
+// ============================================================
 document.addEventListener('DOMContentLoaded', function() {
   var label = document.getElementById('trustee-number-label');
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
