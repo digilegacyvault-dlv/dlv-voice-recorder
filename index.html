@@ -2,6 +2,21 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
+ IT64 | July 11, 2026
+ BASE: IT63 verbatim, plus the following.
+ CHANGE: version tag bump only (IT63 -> IT64). No logic, styling,
+ or markup changes from IT63. Redeployed alongside upload_test.html
+ and Code.gs (all 3 DLV files share this IT number for this
+ delivery, per the shared-release-number convention) as part of a
+ fresh redeploy after the July 11 2026 domain-carryover debugging
+ session. That session found the real bug was NOT in this file —
+ it was a raw, unescaped line break embedded inside a single-quoted
+ JS string in upload_test.html's buildSummaryHtml() function, which
+ broke that entire file's script block from parsing at all (hence
+ the domain display, and everything else on that page, silently
+ failing to initialize). See the Claude-engineers debugging note
+ from that session for the full writeup.
+ ============================================================
  IT63 | July 10, 2026
  BASE: IT61 verbatim, plus the following. (This delivery is labeled
  IT63 to match upload_test.html and Code.gs for this round — all 3 DLV
@@ -321,7 +336,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT63</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT64</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
@@ -364,7 +379,7 @@ h1 {
     <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT63</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT64</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
@@ -373,7 +388,6 @@ h1 {
 // Paste your GAS Web App /exec URL below, between the quotes.
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
-
 // ============================================================
 // Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
 // CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
@@ -384,7 +398,6 @@ function getTrusteeNumberFromUrl() {
   var t = (params.get('trustee') || '').trim();
   return (t === '1' || t === '2') ? t : '';
 }
-
 // ============================================================
 // NEW in IT59 — read ?subscriberEmail= from the URL.
 // sendTrusteeNomination requires this to look up the correct
@@ -396,7 +409,6 @@ function getSubscriberEmailFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('subscriberEmail') || '').trim();
 }
-
 // ============================================================
 // NEW in IT60 — the rest of the nomination context, carried
 // over from upload_test.html's Trustees tab via the URL, so
@@ -427,7 +439,6 @@ function getDomainsGrantedFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('domainsGranted') || '').trim();
 }
-
 var trusteeNumber = getTrusteeNumberFromUrl();
 var subscriberEmail = getSubscriberEmailFromUrl();
 var subscriberName = getSubscriberNameFromUrl();
@@ -435,7 +446,6 @@ var trusteeName = getTrusteeNameFromUrl();
 var trusteeEmail = getTrusteeEmailFromUrl();
 var letterBodyFromUrl = getLetterBodyFromUrl();
 var domainsGrantedFromUrl = getDomainsGrantedFromUrl();
-
 var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
@@ -444,21 +454,17 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
-
 // NEW in IT60 — signature canvas state
 var sigCanvas = null;
 var sigCtx = null;
 var isDrawingSignature = false;
 var hasDrawnSignature = false;
-
 function returnToMain() {
   window.location.href = 'https://digilegacyvault.com';
 }
-
 function toggleRecording() {
   if (!isRecording) { startRecording(); } else { stopRecording(); }
 }
-
 function startRecording() {
   hideMicDenied();
   setRecStatus('Requesting microphone access…');
@@ -471,7 +477,6 @@ function startRecording() {
       analyserNode.fftSize = 256;
       source.connect(analyserNode);
       startMeter();
-
       mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
       mediaRecorder.addEventListener('dataavailable', function(e) {
@@ -500,9 +505,7 @@ function startRecording() {
       showMicDenied();
     });
 }
-
 function retryMic() { hideMicDenied(); startRecording(); }
-
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
   if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
@@ -515,7 +518,6 @@ function stopRecording() {
   btn.classList.remove('recording');
   document.getElementById('record-btn-label').textContent = 'Press START to record again';
 }
-
 function startMeter() {
   var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
   meterInterval = setInterval(function() {
@@ -526,13 +528,11 @@ function startMeter() {
     document.getElementById('meter-fill').style.width = pct + '%';
   }, 80);
 }
-
 function updateTimerDisplay() {
   var m = Math.floor(timerSeconds / 60);
   var s = timerSeconds % 60;
   document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
 }
-
 // ============================================================
 // NEW in IT60 — signature canvas, drawn via pointer events.
 // One implementation covers mouse, trackpad, touchscreen, and
@@ -548,14 +548,12 @@ function initSignatureCanvas() {
   sigCtx.lineWidth = 2;
   sigCtx.lineCap = 'round';
   sigCtx.lineJoin = 'round';
-
   function getPos(e) {
     var rect = sigCanvas.getBoundingClientRect();
     var scaleX = sigCanvas.width / rect.width;
     var scaleY = sigCanvas.height / rect.height;
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
-
   sigCanvas.addEventListener('pointerdown', function(e) {
     isDrawingSignature = true;
     hasDrawnSignature = true;
@@ -573,13 +571,11 @@ function initSignatureCanvas() {
   sigCanvas.addEventListener('pointerup', function() { isDrawingSignature = false; });
   sigCanvas.addEventListener('pointerleave', function() { isDrawingSignature = false; });
 }
-
 function clearSignature() {
   if (!sigCtx || !sigCanvas) return;
   sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
   hasDrawnSignature = false;
 }
-
 // ============================================================
 // NEW in CAIT56 — JSONP helper
 // Loads a <script> tag pointing at the GAS doGet endpoint.
@@ -612,7 +608,6 @@ function jsonpRequest(url, callbackName, timeoutMs) {
     document.body.appendChild(script);
   });
 }
-
 // ============================================================
 // verifySendWithRetry — IT60 (polls checkNominationSent, was
 // checkVoiceSaved in IT59)
@@ -623,7 +618,6 @@ function verifySendWithRetry(requestId, attemptsLeft) {
   var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
   var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId);
   var btn = document.getElementById('send-btn');
-
   jsonpRequest(url, callbackName, 8000)
     .then(function(data) {
       if (data && data.success && data.found) {
@@ -648,7 +642,6 @@ function verifySendWithRetry(requestId, attemptsLeft) {
       }
     });
 }
-
 // ============================================================
 // sendNomination — IT60 (was sendRecording in IT59).
 // Sends the letter + signature + voice message TOGETHER as one
@@ -682,20 +675,16 @@ function sendNomination() {
     setSendStatus('Please sign your letter above before sending.');
     return;
   }
-
   var btn = document.getElementById('send-btn');
   btn.disabled = true;
   setSendStatus('Sending your nomination…');
-
   var requestId = 'TOK' + Date.now() + Math.random().toString(36).substring(2, 8);
   var signatureDataUrl = sigCanvas ? sigCanvas.toDataURL('image/png') : '';
-
   var reader = new FileReader();
   reader.onload = function(e) {
     var base64 = e.target.result.split(',')[1];
     var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
       '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
-
     var payload = {
       action: 'sendTrusteeNomination',
       base64Data: base64,
@@ -712,7 +701,6 @@ function sendNomination() {
       durationSeconds: timerSeconds,
       domainsGranted: domainsGrantedFromUrl
     };
-
     fetch(GAS_WEBAPP_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -730,7 +718,6 @@ function sendNomination() {
   };
   reader.readAsDataURL(audioBlob);
 }
-
 function reRecord() {
   audioBlob = null; audioChunks = [];
   timerSeconds = 0; updateTimerDisplay();
@@ -743,12 +730,10 @@ function reRecord() {
   setSendStatus('');
   document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
 }
-
 function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
 function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
-
 // ============================================================
 // Show which trustee this recorder session is tagged for —
 // unchanged from CAIT55.
