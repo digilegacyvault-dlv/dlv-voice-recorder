@@ -2,6 +2,20 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
+ IT63 | July 10, 2026
+ BASE: IT61 verbatim, plus the following. (This delivery is labeled
+ IT63 to match upload_test.html and Code.gs for this round — all 3 DLV
+ files now share one release number per delivery, going forward.)
+ CHANGE (Batch B, July 10 2026): per-trustee domain-access grant.
+ Reads a new ?domainsGranted= URL param (comma-separated domain codes,
+ e.g. "LEGAL,MEDICAL") set by upload_test.html's Trustees-tab
+ checkboxes. Displayed back to the subscriber for review, in
+ human-readable form, above the letter textarea. Carried through
+ unchanged in the sendNomination() payload to Code.gs's
+ sendTrusteeNomination, which now requires and stores it as a new
+ Granted_Domains column on the Nominations sheet. No enforcement here
+ — this page only reviews and forwards the subscriber's choice.
+ ============================================================
  IT61 | July 9, 2026
  BASE: IT60 verbatim, plus the following.
  CONTEXT (July 9 2026 request): subscriber-facing instruction
@@ -10,9 +24,9 @@
  enlarge the page for an easier read of the text.
  NEW:
  1. Added a short on-page tip telling the subscriber to press
- Cmd/Ctrl + "+" (browser zoom) for a bigger view of the page —
- placed right above the Review Your Letter section, since that
- is the text being edited before recording.
+    Cmd/Ctrl + "+" (browser zoom) for a bigger view of the page —
+    placed right above the Review Your Letter section, since that
+    is the text being edited before recording.
  Everything else (letter review, signature canvas, recording,
  sendNomination/checkNominationSent flow) is carried over from
  IT60 verbatim — no logic changes.
@@ -307,11 +321,14 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT61</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT63</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
   <div id="trustee-badge">Nominating: Trustee <span id="trustee-number-label">&#8212;</span> <span id="trustee-name-label"></span></div>
+  <!-- NEW (Batch B, July 10 2026) — shows the domain(s) chosen back on
+       upload_test.html, so the subscriber can confirm before sending. -->
+  <div id="domains-granted-badge" style="font-size:.74rem;color:#1a1108;font-weight:bold;margin-bottom:16px;"></div>
   <!-- NEW in IT61 — zoom tip for easier reading/editing of the letter text -->
   <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, editing, and recording.</div>
   <hr class="rec-divider">
@@ -347,7 +364,7 @@ h1 {
     <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT61</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT63</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
@@ -402,6 +419,14 @@ function getLetterBodyFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('letterBody') || '');
 }
+// NEW (Batch B, July 10 2026) — read ?domainsGranted= from the URL, a
+// comma-separated list of domain codes (e.g. "LEGAL,MEDICAL") chosen by
+// the subscriber in upload_test.html's Trustees tab. Carried through to
+// sendNomination() for storage on the Nominations sheet.
+function getDomainsGrantedFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  return (params.get('domainsGranted') || '').trim();
+}
 
 var trusteeNumber = getTrusteeNumberFromUrl();
 var subscriberEmail = getSubscriberEmailFromUrl();
@@ -409,6 +434,7 @@ var subscriberName = getSubscriberNameFromUrl();
 var trusteeName = getTrusteeNameFromUrl();
 var trusteeEmail = getTrusteeEmailFromUrl();
 var letterBodyFromUrl = getLetterBodyFromUrl();
+var domainsGrantedFromUrl = getDomainsGrantedFromUrl();
 
 var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
@@ -683,7 +709,8 @@ function sendNomination() {
       letterBody: letterText,
       signatureDataUrl: signatureDataUrl,
       clientRequestId: requestId,
-      durationSeconds: timerSeconds
+      durationSeconds: timerSeconds,
+      domainsGranted: domainsGrantedFromUrl
     };
 
     fetch(GAS_WEBAPP_URL, {
@@ -710,7 +737,7 @@ function reRecord() {
   document.getElementById('audio-player').src = '';
   document.getElementById('playback-section').style.display = 'none';
   var sb = document.getElementById('send-btn');
-  sb.disabled = false; sb.textContent = '📧 Send Nomination';
+  sb.disabled = false; sb.textContent = '📤 Send Nomination';
   sb.style.background = '';
   setRecStatus('Ready to record again. Press START.');
   setSendStatus('');
@@ -731,6 +758,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
   var nameLabel = document.getElementById('trustee-name-label');
   if (nameLabel && trusteeName) nameLabel.textContent = '(' + trusteeName + ')';
+  var DOMAIN_LABELS_RECORDER = { LEGAL: 'Legal', FINANCE: 'Finance', MEDICAL: 'Medical', MEMORABILIA: 'Memorabilia' };
+  var domainsBadge = document.getElementById('domains-granted-badge');
+  if (domainsBadge && domainsGrantedFromUrl) {
+    var readableDomains = domainsGrantedFromUrl.split(',').map(function(code) { return DOMAIN_LABELS_RECORDER[code] || code; }).join(', ');
+    domainsBadge.textContent = 'Domains granted: ' + readableDomains;
+  }
   var letterArea = document.getElementById('letter-textarea-recorder');
   if (letterArea) letterArea.value = letterBodyFromUrl;
   initSignatureCanvas();
