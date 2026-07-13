@@ -2,6 +2,29 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
+ IT66 | July 13, 2026
+ BASE: IT65 verbatim, plus the following.
+ CHANGE: version tag bump only (IT65 -> IT66). No logic, styling,
+ or markup changes from IT65. Redeployed alongside upload_test.html
+ and Code.gs (all 3 DLV files share this IT number for this
+ delivery). This round's actual changes (bug fix: #toast z-index
+ was below the Profile & Trustees modal's, hiding all toasts —
+ including the IT65 flash reminder — behind the modal backdrop;
+ plus a new domain-access-change note on the Trustees tab) are
+ both in upload_test.html only — this file has no changes.
+ ============================================================
+ IT65 | July 13, 2026
+ BASE: IT64 verbatim, plus the following.
+ CHANGE: version tag bump only (IT64 -> IT65). No logic, styling,
+ or markup changes from IT64. Redeployed alongside upload_test.html
+ and Code.gs (all 3 DLV files share this IT number for this
+ delivery, per the shared-release-number convention). This round's
+ actual changes (tweak #1: letter-template placeholder auto-clears
+ once the subscriber types their full name; tweak #2: flashing
+ reminder on the Trustees tab when required fields are missing
+ before CONTINUE TO NEXT PAGE) are both in upload_test.html only —
+ this file has no logic changes.
+ ============================================================
  IT64 | July 11, 2026
  BASE: IT63 verbatim, plus the following.
  CHANGE: version tag bump only (IT63 -> IT64). No logic, styling,
@@ -336,7 +359,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT64</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT66</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
@@ -379,7 +402,7 @@ h1 {
     <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT64</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT66</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
