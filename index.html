@@ -2,15 +2,24 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- IT69 | July 16, 2026
+ IT70 | July 16, 2026
  BASE: IT66 verbatim, plus the following.
- CHANGE: version tag bump only (IT66 -> IT69). No logic, styling,
- or markup changes from IT66 — this release exists solely so this
- file's version label matches the IT69 delivery in Code.gs and
- upload_test.html (new Trustee-replacement notice feature: two
- "Replace This Trustee" buttons, openTrusteeChange(n), and the
- new standalone dlv-trustee-change companion app, a separate
- GitHub Pages repo). This file itself has no changes.
+ CHANGE: critical bug fix, not a copy-only bump. GAS_WEBAPP_URL
+ below was pointing at a deployment whose exec URL had started
+ returning a Google Drive "file does not exist" error (confirmed
+ live, reproducible, unrelated to code correctness — that
+ deployment's registration was broken at Google's serving layer).
+ As a result, every "Send Nomination" click on this page silently
+ hit a dead endpoint: the no-cors POST had nowhere real to land,
+ and the JSONP verification poll against the same dead URL could
+ never get a real response, always ending in "Could not verify
+ the send." This means the entire trustee-nomination flow (voice
+ recording, signature, nomination) has been broken since whenever
+ that deployment stopped serving, not just the new IT69 trustee-
+ replacement feature. Fixed by pointing GAS_WEBAPP_URL at the
+ working deployment (same project, Deployment ID that has been
+ serving successfully for months) instead of the broken one. No
+ other logic changed.
  ============================================================
  IT66 | July 13, 2026
  BASE: IT65 verbatim, plus the following.
@@ -369,7 +378,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT69</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT70</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
@@ -412,7 +421,7 @@ h1 {
     <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT69</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT70</div>
 </div>
 <button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
 <script>
@@ -420,7 +429,7 @@ h1 {
 // CONFIG — REQUIRED
 // Paste your GAS Web App /exec URL below, between the quotes.
 // ============================================================
-var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
 // ============================================================
 // Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
 // CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
