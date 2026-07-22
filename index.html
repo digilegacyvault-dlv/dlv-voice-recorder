@@ -2,8 +2,33 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT73 | July 22, 2026 (not yet deployed as of
+ CURRENT RELEASE: IT74 | July 22, 2026 (not yet deployed as of
  writing — this is the version about to be pasted/committed).
+============================================================
+ IT74 | July 22, 2026 — TWO changes:
+   1) Cosmetic, from Alfredt's third mockup: "Recording finalized.
+      Ready to send." plain-text status replaced with a large green
+      "Recording Successful. Ready to SEND." banner shown once
+      FINAL Version is clicked; Send button restyled from green to
+      black/white (matching Unlimited Re-recording / FINAL Version).
+   2) REAL BUG FOUND AND FIXED — root cause of the live "Could not
+      verify the send" failure Alfredt hit today. GAS_WEBAPP_URL's
+      deployment ID had a 2-character typo baked into this file
+      since it was first hardcoded (capital "I" mistyped as
+      lowercase "l" at two positions — visually identical in most
+      fonts, so it went unnoticed through every prior IT round,
+      including the July 16 "fix" that only patched which deployment
+      the string pointed to, not the typo itself). Confirmed via
+      exact DOM-text extraction from Apps Script's own Manage
+      Deployments dialog (not visual reading, to rule out I/l
+      confusion) that the real ID is
+      ...KIBCfrZsSIVM... — this file had ...KlBCfrZsSlVM... Fixed
+      here. Also confirmed dlv-trustee-change/index.html is NOT
+      affected — it uses a different, already-correct
+      GAS_WEBAPP_URL (shared with the Storage Summary deployment).
+      Separately, that deployment itself was also stuck serving a
+      stale Version 294 snapshot from July 16; redeployed via
+      Manage Deployments > Edit > New version to push current HEAD.
 ============================================================
  IT73 | July 22, 2026 — Batch C, item 11 onward (post-recording
  section reformat, from Alfredt's second Keynote mockup) PLUS a
@@ -464,15 +489,16 @@ h1 {
 }
 .rec-dark-btn:hover { opacity: .85; }
 .rec-dark-btn:disabled { cursor: default; opacity: .5; }
-/* NEW in IT73 (item 11c/11d) — green "Send recorded invitation…"
-   button, replacing the old amber "Send Nomination" button. */
+/* CHANGED in IT74 — "Send recorded invitation…" button restyled
+   from green to black/white per Alfredt's updated mockup, matching
+   the Unlimited Re-recording / FINAL Version dark-pill style. */
 .send-invite-btn {
   width: 100%;
   padding: 12px;
   border-radius: 8px;
   border: none;
-  background: #8bdb5c;
-  color: #142b0a;
+  background: #1a1108;
+  color: #ffffff;
   font-family: Georgia, serif;
   font-size: .88rem;
   font-weight: bold;
@@ -480,8 +506,23 @@ h1 {
   margin-bottom: 10px;
   transition: opacity .2s;
 }
-.send-invite-btn:hover { opacity: .88; }
+.send-invite-btn:hover { opacity: .85; }
 .send-invite-btn:disabled { cursor: default; opacity: .6; }
+/* NEW in IT74 — "Recording Successful. Ready to SEND." banner,
+   shown above the send button once FINAL Version is clicked,
+   replacing the old plain-text status message for this moment. */
+#recording-ready-banner {
+  display: none;
+  background: #8bdb5c;
+  color: #142b0a;
+  font-weight: bold;
+  text-align: center;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
 /* NEW in IT73 (item 11e) — yellow "Sent: <date/time>" badge,
    shown in place of the button once the send is verified. */
 #sent-badge {
@@ -509,7 +550,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT73</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT74</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <!-- NEW in IT73 (item 11f) — everything from the subtitle through
@@ -576,13 +617,15 @@ h1 {
       <button class="rec-dark-btn" id="finalize-recording-btn" onclick="finalizeRecording()">FINAL Version</button>
     </div>
     <p class="security-note">For security reason, voice recording is not saved.</p>
-    <!-- item 11c/11d — green send button, gated on recordingLocked, dynamic trustee number -->
+    <!-- NEW in IT74 — shown once FINAL Version is clicked -->
+    <div id="recording-ready-banner">Recording Successful.<br>Ready to SEND.</div>
+    <!-- item 11c/11d — send button, gated on recordingLocked, dynamic trustee number -->
     <button class="send-invite-btn" id="send-btn" onclick="sendNomination()">&#128231; Send recorded invitation to Trustee Nominee #<span id="send-btn-trustee-num">&#8212;</span></button>
     <!-- item 11e — shown instead of the button once send is verified -->
     <div id="sent-badge">Sent: <span id="sent-timestamp"></span></div>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT73</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT74</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
 <button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
@@ -590,7 +633,7 @@ h1 {
 // ============================================================
 // CONFIG — REQUIRED
 // ============================================================
-var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKIBCfrZsSIVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
 // NEW in IT73 (bugfix) — GAS_WEBAPP_URL above is a different
 // deployment than the actual DLV Storage Summary app (confirmed:
 // navigating to bare GAS_WEBAPP_URL returns Google Drive's "Sorry,
@@ -805,7 +848,10 @@ function finalizeRecording() {
   recordingLocked = true;
   var finBtn = document.getElementById('finalize-recording-btn');
   if (finBtn) finBtn.disabled = true;
-  setSendStatus('Recording finalized. Ready to send.');
+  // CHANGED in IT74 — show the green banner instead of plain text
+  setSendStatus('');
+  var readyBanner = document.getElementById('recording-ready-banner');
+  if (readyBanner) readyBanner.style.display = 'block';
 }
 // NEW in IT73 — formats a Date as e.g. "July 22, 2026, 3:47 PM"
 function formatSentTimestamp(d) {
