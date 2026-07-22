@@ -2,18 +2,50 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- IT72 | July 22, 2026
- BASE: IT70-label content (verified live, matches IT66's actual
- script/markup verbatim — no file-specific changes happened
- between IT66 and IT70; the visible label was bumped in later
- rounds per the shared-release-number convention without a new
- comment entry here, until now).
- CHANGE (Batch C — all 10 tweaks from Alfredt's Keynote mockup
- "VR.TRUSTEE Nomination Corrections", applied together July 22
- 2026, per Alfredt's request to build all 10 before a single
- combined paste/deploy rather than one at a time — Alfredt has
- confirmed this session will not end before deploying and
- verifying, per the July 21 carry-over note's lesson):
+ CURRENT RELEASE: IT73 | July 22, 2026 (not yet deployed as of
+ writing — this is the version about to be pasted/committed).
+============================================================
+ IT73 | July 22, 2026 — Batch C, item 11 onward (post-recording
+ section reformat, from Alfredt's second Keynote mockup) PLUS a
+ bugfix found while building it:
+   11a) "REVIEW YOUR RECORDING" section label restyled to a
+        highlighted "Review your voice recording" line.
+   11b) "Rerecord" relabeled "Unlimited Re-recording" (same
+        function, no logic change) and displayed alongside a new
+        "FINAL Version" button that locks the recording — parallel
+        to the signature's Re-sign/Final Version pair.
+   11c) sendNomination() now also requires recordingLocked (the
+        recording must be finalized), same pattern as the
+        signature check added in IT72.
+   11d) Send button restyled green, re-labeled "Send recorded
+        invitation to Trustee Nominee #X" with the trustee number
+        filled in dynamically.
+   11e) On confirmed send, the button is replaced with a yellow
+        "Sent: <exact date/time>" badge instead of just relabeling
+        the button text.
+   11f) Once a recording exists, the page collapses: a new
+        #pre-recording-content wrapper (subtitle through record
+        controls) is hidden the moment recording stops, leaving
+        only the h1 title and #playback-section visible. Restored
+        if "Unlimited Re-recording" is pressed.
+   BUGFIX: tweak #10 (IT72) pointed "Return to DLV Storage Summary"
+   at GAS_WEBAPP_URL, which is the WRONG deployment for direct page
+   navigation — confirmed live it returns Google Drive's "Sorry,
+   the file you have requested does not exist" (Alfredt caught this
+   after IT72 shipped). Added a separate STORAGE_SUMMARY_URL
+   constant pointing at the correct deployment (confirmed live,
+   loads the real Storage Summary page) and repointed
+   returnToSummary() at it.
+   Kept as-is per Alfredt's explicit confirmation: the "For
+   security reason, voice recording is not saved" note appears
+   twice (once under the record button from tweak #9, once again
+   in the reformatted review section) — intentional repeat.
+============================================================
+ IT72 | July 22, 2026 — Batch C, all 10 tweaks from Alfredt's
+ first Keynote mockup ("VR.TRUSTEE Nomination Corrections"),
+ applied together and deployed as one combined paste, per
+ Alfredt's request. CONFIRMED LIVE this same day (GitHub commit
+ ecd48c8) — this round is real deployment history, not pending.
    1) Moved #zoom-tip above the trustee/domain badges (was below).
    2) Trustee badge re-worded "Nominating: Trustee X (Name)" ->
       "Trustee Nominee #X: Name", yellow-highlighted, no more
@@ -36,21 +68,24 @@
    9) Added instructions under the record button: max volume
       reminder, re-record freely, recording not saved.
    10) Bottom return button changed from "Return to Main Page" to
-      "Return to DLV Storage Summary", now linking to
-      GAS_WEBAPP_URL (the live upload_test.html summary page,
-      per Alfredt's screenshot) instead of the public marketing
-      homepage. The TOP return button is unchanged (still goes to
-      the public homepage) — only the bottom, post-review button
-      changes destination.
+      "Return to DLV Storage Summary" (destination URL corrected
+      in IT73 above — see BUGFIX). The TOP return button is
+      unchanged (still goes to the public homepage) — only the
+      bottom, post-review button changes destination.
  Follow-up (same day): confirmed with Alfredt that "Send
  Nomination" DOES require the signature to be finalized first.
  sendNomination() now also checks signatureLocked (must click
  "Final Version" before Send will proceed), not just that some
  signature was drawn.
+ BASE: IT70-label content (verified live, matches IT66's actual
+ script/markup verbatim — no file-specific changes happened
+ between IT66 and IT70; the visible label was bumped in later
+ rounds per the shared-release-number convention without a new
+ comment entry here, until IT72).
 ============================================================
- IT66 | July 13, 2026 — see prior header history in earlier IT72
- delivery (tweak #1 only) for the full IT61-IT66 changelog; omitted
- here for length, unchanged from that delivery.
+ IT66 | July 13, 2026 — see prior header history in the July 22
+ IT72 delivery for the full IT61-IT66 changelog; omitted here for
+ length, unchanged from that delivery.
 ============================================================
 -->
 <html lang="en">
@@ -391,29 +426,76 @@ h1 {
   margin: 0 auto;
 }
 #playback-section { display: none; margin-top: 4px; }
+/* CHANGED in IT73 (Batch C, item 11a) — was an uppercase section
+   label, now a highlighted sentence-case line, matching the
+   treatment given to other headings in this batch. */
 #playback-label {
-  font-size: .72rem;
+  display: inline-block;
+  background: #f7d488;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  padding: .4rem 1rem;
+  font-size: .88rem;
   font-weight: bold;
   color: #1a1108;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 #audio-player { width: 100%; margin-bottom: 14px; accent-color: #b8860b; }
-.pb-btn { width: 100%;
-  padding: 11px;
+/* NEW in IT73 (item 11b) — "Unlimited Re-recording" / "FINAL
+   Version" row, dark-pill styled per Alfredt's mockup (distinct
+   from the yellow Re-sign/Final Version signature buttons). */
+.rec-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.rec-dark-btn {
+  flex: 1;
+  padding: 10px;
   border-radius: 8px;
   border: none;
+  background: #1a1108;
+  color: #ffffff;
   font-family: Georgia, serif;
-  font-size: .9rem;
+  font-size: .82rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.rec-dark-btn:hover { opacity: .85; }
+.rec-dark-btn:disabled { cursor: default; opacity: .5; }
+/* NEW in IT73 (item 11c/11d) — green "Send recorded invitation…"
+   button, replacing the old amber "Send Nomination" button. */
+.send-invite-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #8bdb5c;
+  color: #142b0a;
+  font-family: Georgia, serif;
+  font-size: .88rem;
   font-weight: bold;
   cursor: pointer;
   margin-bottom: 10px;
   transition: opacity .2s;
 }
-.pb-btn:hover { opacity: .85; }
-.pb-btn:disabled { cursor: default; opacity: .7; }
-#send-btn { background: #b8860b; color: #ffffff; }
+.send-invite-btn:hover { opacity: .88; }
+.send-invite-btn:disabled { cursor: default; opacity: .6; }
+/* NEW in IT73 (item 11e) — yellow "Sent: <date/time>" badge,
+   shown in place of the button once the send is verified. */
+#sent-badge {
+  display: none;
+  background: #fdf199;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  padding: .5rem 1rem;
+  font-size: .85rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-align: center;
+  margin-bottom: 10px;
+}
 #rerecord-btn { background: #f5f0e8; border: 1px solid #d4af7a; color: #1a1108; }
 #send-status {
   font-size: .78rem;
@@ -427,9 +509,14 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT72</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT73</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
+  <!-- NEW in IT73 (item 11f) — everything from the subtitle through
+       the record controls is wrapped so it can be hidden once a
+       recording exists, per Alfredt's "shortened page" mockup. Only
+       the h1 above and #playback-section below stay visible after. -->
+  <div id="pre-recording-content">
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
   <!-- tweak #1 — zoom tip moved above the badges -->
   <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, editing, and recording.</div>
@@ -477,15 +564,25 @@ h1 {
     <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
     <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
   </div>
+  </div><!-- /#pre-recording-content -->
   <div id="playback-section">
     <hr class="rec-divider">
-    <div id="playback-label">Review Your Recording</div>
+    <!-- item 11a — restyled label -->
+    <div id="playback-label">Review your voice recording</div>
     <audio id="audio-player" controls></audio>
-    <button class="pb-btn" id="send-btn" onclick="sendNomination()">&#128231; Send Nomination</button>
-    <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
+    <!-- item 11b — Unlimited Re-recording / FINAL Version row -->
+    <div class="rec-btn-row">
+      <button class="rec-dark-btn" id="rerecord-btn" onclick="reRecord()">Unlimited Re-recording</button>
+      <button class="rec-dark-btn" id="finalize-recording-btn" onclick="finalizeRecording()">FINAL Version</button>
+    </div>
+    <p class="security-note">For security reason, voice recording is not saved.</p>
+    <!-- item 11c/11d — green send button, gated on recordingLocked, dynamic trustee number -->
+    <button class="send-invite-btn" id="send-btn" onclick="sendNomination()">&#128231; Send recorded invitation to Trustee Nominee #<span id="send-btn-trustee-num">&#8212;</span></button>
+    <!-- item 11e — shown instead of the button once send is verified -->
+    <div id="sent-badge">Sent: <span id="sent-timestamp"></span></div>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT72</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT73</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
 <button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
@@ -494,6 +591,13 @@ h1 {
 // CONFIG — REQUIRED
 // ============================================================
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+// NEW in IT73 (bugfix) — GAS_WEBAPP_URL above is a different
+// deployment than the actual DLV Storage Summary app (confirmed:
+// navigating to bare GAS_WEBAPP_URL returns Google Drive's "Sorry,
+// the file you have requested does not exist"). tweak #10 wrongly
+// pointed returnToSummary() at GAS_WEBAPP_URL; this is the correct,
+// verified-live Storage Summary deployment URL instead.
+var STORAGE_SUMMARY_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
 function getTrusteeNumberFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var t = (params.get('trustee') || '').trim();
@@ -544,12 +648,17 @@ var isDrawingSignature = false;
 var hasDrawnSignature = false;
 // NEW in IT72 (tweak #6) — lock state for the signature canvas
 var signatureLocked = false;
+// NEW in IT73 (item 11b/11c) — lock state for the recording,
+// parallel to signatureLocked.
+var recordingLocked = false;
 function returnToMain() {
   window.location.href = 'https://digilegacyvault.com';
 }
-// NEW in IT72 (tweak #10)
+// NEW in IT72 (tweak #10), FIXED in IT73 — was pointed at
+// GAS_WEBAPP_URL (wrong deployment, 404s), now points at the
+// verified-live STORAGE_SUMMARY_URL instead.
 function returnToSummary() {
-  window.location.href = GAS_WEBAPP_URL;
+  window.location.href = STORAGE_SUMMARY_URL;
 }
 function toggleRecording() {
   if (!isRecording) { startRecording(); } else { stopRecording(); }
@@ -576,6 +685,10 @@ function startRecording() {
         var url = URL.createObjectURL(audioBlob);
         document.getElementById('audio-player').src = url;
         document.getElementById('playback-section').style.display = 'block';
+        // NEW in IT73 (item 11f) — collapse to the shortened page
+        // once a recording exists.
+        var preContent = document.getElementById('pre-recording-content');
+        if (preContent) preContent.style.display = 'none';
         setRecStatus('Recording complete. Review and save below.');
       });
       mediaRecorder.start();
@@ -681,6 +794,23 @@ function setSigStatus(msg) {
   var el = document.getElementById('sig-status');
   if (el) el.textContent = msg;
 }
+// NEW in IT73 (item 11b/11c) — "FINAL Version" locks the recording,
+// parallel to finalizeSignature() above. Requires a recording to
+// already exist (audioBlob set by the recorder's onstop handler).
+function finalizeRecording() {
+  if (!audioBlob) {
+    setSendStatus('Please record your voice message first.');
+    return;
+  }
+  recordingLocked = true;
+  var finBtn = document.getElementById('finalize-recording-btn');
+  if (finBtn) finBtn.disabled = true;
+  setSendStatus('Recording finalized. Ready to send.');
+}
+// NEW in IT73 — formats a Date as e.g. "July 22, 2026, 3:47 PM"
+function formatSentTimestamp(d) {
+  return d.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 function jsonpRequest(url, callbackName, timeoutMs) {
   return new Promise(function(resolve, reject) {
     var script = document.createElement('script');
@@ -713,10 +843,15 @@ function verifySendWithRetry(requestId, attemptsLeft) {
   jsonpRequest(url, callbackName, 8000)
     .then(function(data) {
       if (data && data.success && data.found) {
-        setSendStatus('✓ Nomination sent to ' + (trusteeName || 'your trustee') + '!');
-        btn.textContent = '✓ Sent';
-        btn.style.background = '#2d5a27';
-        btn.disabled = true;
+        // CHANGED in IT73 (item 11e) — show the yellow "Sent:
+        // <date/time>" badge in place of the button, instead of
+        // just relabeling the button text.
+        setSendStatus('');
+        btn.style.display = 'none';
+        var badge = document.getElementById('sent-badge');
+        var ts = document.getElementById('sent-timestamp');
+        if (ts) ts.textContent = formatSentTimestamp(new Date());
+        if (badge) badge.style.display = 'block';
       } else if (attemptsLeft > 0) {
         setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
         setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
@@ -759,6 +894,11 @@ function sendNomination() {
   }
   if (!signatureLocked) {
     setSendStatus('Please click "Final Version" to finalize your signature before sending.');
+    return;
+  }
+  // NEW in IT73 (item 11c) — recording must also be finalized
+  if (!recordingLocked) {
+    setSendStatus('Please click "FINAL Version" to finalize your recording before sending.');
     return;
   }
   var btn = document.getElementById('send-btn');
@@ -809,9 +949,18 @@ function reRecord() {
   timerSeconds = 0; updateTimerDisplay();
   document.getElementById('audio-player').src = '';
   document.getElementById('playback-section').style.display = 'none';
+  // NEW in IT73 (item 11f) — restore the full page when re-recording
+  var preContent = document.getElementById('pre-recording-content');
+  if (preContent) preContent.style.display = '';
+  // NEW in IT73 — reset the recording lock and related UI on re-record
+  recordingLocked = false;
+  var finBtn = document.getElementById('finalize-recording-btn');
+  if (finBtn) finBtn.disabled = false;
+  var badge = document.getElementById('sent-badge');
+  if (badge) badge.style.display = 'none';
   var sb = document.getElementById('send-btn');
-  sb.disabled = false; sb.textContent = '📤 Send Nomination';
-  sb.style.background = '';
+  sb.disabled = false;
+  sb.style.display = '';
   setRecStatus('Ready to record again. Press START.');
   setSendStatus('');
   document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
@@ -825,6 +974,9 @@ document.addEventListener('DOMContentLoaded', function() {
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
   var nameLabel = document.getElementById('trustee-name-label');
   if (nameLabel) nameLabel.textContent = trusteeName || '';
+  // NEW in IT73 (item 11d) — dynamic trustee number in the send button
+  var sendBtnNum = document.getElementById('send-btn-trustee-num');
+  if (sendBtnNum) sendBtnNum.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
   var DOMAIN_LABELS_RECORDER = { LEGAL: 'Legal', FINANCE: 'Finance', MEDICAL: 'Medical', MEMORABILIA: 'Memorabilia' };
   var domainsBlock = document.getElementById('domains-granted-badge');
   var domainsValue = document.getElementById('domains-value');
