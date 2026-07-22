@@ -2,8 +2,33 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT74 | July 22, 2026 (not yet deployed as of
+ CURRENT RELEASE: IT75 | July 22, 2026 (not yet deployed as of
  writing — this is the version about to be pasted/committed).
+============================================================
+ IT75 | July 22, 2026 — post-send-flow polish, from Alfredt's review
+ of the live IT74 page. Also: removed the visible "· IT[n]" version
+ tag from the topbar and footer on this subscriber-facing page — it
+ had no meaning to a Trustee Nominee viewing this page, and Claude
+ doesn't need it visible either (version can be confirmed directly
+ via the extension regardless of what's on-screen). Internal IT
+ tracking continues here in this HTML comment/changelog only, which
+ subscribers never see.
+   1) "FINAL Version" (recording) now actually locks: "Unlimited
+      Re-recording" is disabled the moment recordingLocked is set,
+      matching the behavior of the finalize-recording button itself.
+      Previously the button stayed clickable and silently unlocked
+      and re-recorded, with no visible lock-out — reported live.
+   2) The green "Recording Successful. Ready to SEND." banner is now
+      hidden once the send is confirmed (it stayed visible next to
+      the Sent badge before — reported live).
+   3) "Sent: <date/time>" badge re-worded to "RECORDED INVITATION
+      SENT: <date/time>" per Alfredt's request.
+   Also confirmed: the "digilegacyvault.com · IT[n]" footer tag on
+   every page is the project's standing version-tag convention (in
+   place across every DLV page for as long as this project has used
+   IT numbering) — it's how live state gets confirmed at a glance
+   during verification, including catching real mismatches earlier
+   this same session. Left as-is; flag if Alfredt wants it removed.
 ============================================================
  IT74 | July 22, 2026 — TWO changes:
    1) Cosmetic, from Alfredt's third mockup: "Recording finalized.
@@ -550,7 +575,7 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT74</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <!-- NEW in IT73 (item 11f) — everything from the subtitle through
@@ -622,10 +647,10 @@ h1 {
     <!-- item 11c/11d — send button, gated on recordingLocked, dynamic trustee number -->
     <button class="send-invite-btn" id="send-btn" onclick="sendNomination()">&#128231; Send recorded invitation to Trustee Nominee #<span id="send-btn-trustee-num">&#8212;</span></button>
     <!-- item 11e — shown instead of the button once send is verified -->
-    <div id="sent-badge">Sent: <span id="sent-timestamp"></span></div>
+    <div id="sent-badge">RECORDED INVITATION SENT: <span id="sent-timestamp"></span></div>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT74</div>
+  <div id="rec-footer">digilegacyvault.com</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
 <button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
@@ -848,6 +873,10 @@ function finalizeRecording() {
   recordingLocked = true;
   var finBtn = document.getElementById('finalize-recording-btn');
   if (finBtn) finBtn.disabled = true;
+  // NEW in IT75 — actually lock out re-recording once finalized;
+  // previously this button stayed clickable and silently unlocked.
+  var rerecBtn = document.getElementById('rerecord-btn');
+  if (rerecBtn) rerecBtn.disabled = true;
   // CHANGED in IT74 — show the green banner instead of plain text
   setSendStatus('');
   var readyBanner = document.getElementById('recording-ready-banner');
@@ -894,6 +923,9 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // just relabeling the button text.
         setSendStatus('');
         btn.style.display = 'none';
+        // NEW in IT75 — hide the "ready to send" banner once actually sent
+        var readyBanner2 = document.getElementById('recording-ready-banner');
+        if (readyBanner2) readyBanner2.style.display = 'none';
         var badge = document.getElementById('sent-badge');
         var ts = document.getElementById('sent-timestamp');
         if (ts) ts.textContent = formatSentTimestamp(new Date());
@@ -1002,6 +1034,10 @@ function reRecord() {
   recordingLocked = false;
   var finBtn = document.getElementById('finalize-recording-btn');
   if (finBtn) finBtn.disabled = false;
+  // NEW in IT75 — re-enable in case a future path re-triggers this
+  // with the button previously locked.
+  var rerecBtn2 = document.getElementById('rerecord-btn');
+  if (rerecBtn2) rerecBtn2.disabled = false;
   var badge = document.getElementById('sent-badge');
   if (badge) badge.style.display = 'none';
   var sb = document.getElementById('send-btn');
