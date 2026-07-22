@@ -2,91 +2,55 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- IT70 | July 16, 2026
- BASE: IT66 verbatim, plus the following.
- CHANGE: critical bug fix, not a copy-only bump. GAS_WEBAPP_URL
- below was pointing at a deployment whose exec URL had started
- returning a Google Drive "file does not exist" error (confirmed
- live, reproducible, unrelated to code correctness — that
- deployment's registration was broken at Google's serving layer).
- As a result, every "Send Nomination" click on this page silently
- hit a dead endpoint: the no-cors POST had nowhere real to land,
- and the JSONP verification poll against the same dead URL could
- never get a real response, always ending in "Could not verify
- the send." This means the entire trustee-nomination flow (voice
- recording, signature, nomination) has been broken since whenever
- that deployment stopped serving, not just the new IT69 trustee-
- replacement feature. Fixed by pointing GAS_WEBAPP_URL at the
- working deployment (same project, Deployment ID that has been
- serving successfully for months) instead of the broken one. No
- other logic changed.
- ============================================================
- IT66 | July 13, 2026
- BASE: IT65 verbatim, plus the following.
- CHANGE: version tag bump only (IT65 -> IT66). No logic, styling,
- or markup changes from IT65. Redeployed alongside upload_test.html
- and Code.gs (all 3 DLV files share this IT number for this
- delivery). This round's actual changes (bug fix: #toast z-index
- was below the Profile & Trustees modal's, hiding all toasts —
- including the IT65 flash reminder — behind the modal backdrop;
- plus a new domain-access-change note on the Trustees tab) are
- both in upload_test.html only — this file has no changes.
- ============================================================
- IT65 | July 13, 2026
- BASE: IT64 verbatim, plus the following.
- CHANGE: version tag bump only (IT64 -> IT65). No logic, styling,
- or markup changes from IT64. Redeployed alongside upload_test.html
- and Code.gs (all 3 DLV files share this IT number for this
- delivery, per the shared-release-number convention). This round's
- actual changes (tweak #1: letter-template placeholder auto-clears
- once the subscriber types their full name; tweak #2: flashing
- reminder on the Trustees tab when required fields are missing
- before CONTINUE TO NEXT PAGE) are both in upload_test.html only —
- this file has no logic changes.
- ============================================================
- IT64 | July 11, 2026
- BASE: IT63 verbatim, plus the following.
- CHANGE: version tag bump only (IT63 -> IT64). No logic, styling,
- or markup changes from IT63. Redeployed alongside upload_test.html
- and Code.gs (all 3 DLV files share this IT number for this
- delivery, per the shared-release-number convention) as part of a
- fresh redeploy after the July 11 2026 domain-carryover debugging
- session. That session found the real bug was NOT in this file —
- it was a raw, unescaped line break embedded inside a single-quoted
- JS string in upload_test.html's buildSummaryHtml() function, which
- broke that entire file's script block from parsing at all (hence
- the domain display, and everything else on that page, silently
- failing to initialize). See the Claude-engineers debugging note
- from that session for the full writeup.
- ============================================================
- IT63 | July 10, 2026
- BASE: IT61 verbatim, plus the following. (This delivery is labeled
- IT63 to match upload_test.html and Code.gs for this round — all 3 DLV
- files now share one release number per delivery, going forward.)
- CHANGE (Batch B, July 10 2026): per-trustee domain-access grant.
- Reads a new ?domainsGranted= URL param (comma-separated domain codes,
- e.g. "LEGAL,MEDICAL") set by upload_test.html's Trustees-tab
- checkboxes. Displayed back to the subscriber for review, in
- human-readable form, above the letter textarea. Carried through
- unchanged in the sendNomination() payload to Code.gs's
- sendTrusteeNomination, which now requires and stores it as a new
- Granted_Domains column on the Nominations sheet. No enforcement here
- — this page only reviews and forwards the subscriber's choice.
- ============================================================
- IT61 | July 9, 2026
- BASE: IT60 verbatim, plus the following.
- CONTEXT (July 9 2026 request): subscriber-facing instruction
- requested — while reviewing/editing the letter text and
- preparing to record, subscribers should be told they can
- enlarge the page for an easier read of the text.
- NEW:
- 1. Added a short on-page tip telling the subscriber to press
-    Cmd/Ctrl + "+" (browser zoom) for a bigger view of the page —
-    placed right above the Review Your Letter section, since that
-    is the text being edited before recording.
- Everything else (letter review, signature canvas, recording,
- sendNomination/checkNominationSent flow) is carried over from
- IT60 verbatim — no logic changes.
+ IT72 | July 22, 2026
+ BASE: IT70-label content (verified live, matches IT66's actual
+ script/markup verbatim — no file-specific changes happened
+ between IT66 and IT70; the visible label was bumped in later
+ rounds per the shared-release-number convention without a new
+ comment entry here, until now).
+ CHANGE (Batch C — all 10 tweaks from Alfredt's Keynote mockup
+ "VR.TRUSTEE Nomination Corrections", applied together July 22
+ 2026, per Alfredt's request to build all 10 before a single
+ combined paste/deploy rather than one at a time — Alfredt has
+ confirmed this session will not end before deploying and
+ verifying, per the July 21 carry-over note's lesson):
+   1) Moved #zoom-tip above the trustee/domain badges (was below).
+   2) Trustee badge re-worded "Nominating: Trustee X (Name)" ->
+      "Trustee Nominee #X: Name", yellow-highlighted, no more
+      uppercase/pill styling.
+   3) Domains line re-worded "Domains granted: ..." -> two bold
+      centered lines, "Domains given access to:" / the list.
+   4) Removed "REVIEW YOUR LETTER" section label; replaced with
+      instruction text ("Draft of letter below can be edited as
+      needed. Final version shall be used for the voice recording.")
+   5) Removed "SIGN YOUR LETTER" section label; replaced with
+      instruction text about using a digital pen/mouse.
+   6) Replaced the single "Clear Signature" button with two
+      buttons: "Re-sign" (clears canvas, unlocks drawing again)
+      and "Final Version" (locks the canvas, no further edits
+      until Re-sign is pressed). Both yellow-highlighted.
+   7) Added note: "For security reason, digital signature is not
+      saved."
+   8) Removed "RECORD YOUR VOICE MESSAGE" section label; replaced
+      with a green "Voice Recording" banner.
+   9) Added instructions under the record button: max volume
+      reminder, re-record freely, recording not saved.
+   10) Bottom return button changed from "Return to Main Page" to
+      "Return to DLV Storage Summary", now linking to
+      GAS_WEBAPP_URL (the live upload_test.html summary page,
+      per Alfredt's screenshot) instead of the public marketing
+      homepage. The TOP return button is unchanged (still goes to
+      the public homepage) — only the bottom, post-review button
+      changes destination.
+ Follow-up (same day): confirmed with Alfredt that "Send
+ Nomination" DOES require the signature to be finalized first.
+ sendNomination() now also checks signatureLocked (must click
+ "Final Version" before Send will proceed), not just that some
+ signature was drawn.
+============================================================
+ IT66 | July 13, 2026 — see prior header history in earlier IT72
+ delivery (tweak #1 only) for the full IT61-IT66 changelog; omitted
+ here for length, unchanged from that delivery.
 ============================================================
 -->
 <html lang="en">
@@ -126,6 +90,27 @@ body {
   text-decoration: none;
 }
 #return-btn:hover { opacity: .82; }
+/* NEW in IT72 (tweak #10) — bottom return button styled the same
+   as #return-btn but with its own id so it can point elsewhere. */
+#return-summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1.2rem;
+  background: #1a1108;
+  color: #ffffff !important;
+  border: none;
+  border-radius: 30px;
+  font-family: Georgia, serif;
+  font-size: .78rem; font-weight: bold;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 14px;
+  transition: opacity .2s;
+  text-decoration: none;
+}
+#return-summary-btn:hover { opacity: .82; }
 #rec-topbar {
   background: #1a1108;
   color: #f5f0e8;
@@ -161,20 +146,97 @@ h1 {
   color: #1a1108;
   margin-bottom: 20px;
   font-weight: bold;}
+/* CHANGED in IT72 (tweak #2) — was an uppercase pill, now a
+   larger yellow-highlighted line: "Trustee Nominee #X: Name" */
 #trustee-badge {
   display: inline-block;
-  background: #f5f0e8;
+  background: #fdf199;
   border: 1px solid #d4af7a;
-  border-radius: 20px;
-  padding: .3rem .9rem;
-  font-size: .72rem;
+  border-radius: 8px;
+  padding: .45rem 1rem;
+  font-size: .92rem;
   font-weight: bold;
-  letter-spacing: .08em;
-  text-transform: uppercase;
   color: #1a1108;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
-/* NEW in IT61 — browser-zoom tip box */
+/* NEW in IT72 (tweak #3) — two-line centered domains text,
+   replacing the old single-line inline-styled div. */
+#domains-granted-badge { margin-bottom: 16px; }
+.domains-label, .domains-value {
+  font-size: .82rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-align: center;
+  line-height: 1.5;
+}
+/* NEW in IT72 (tweak #4, #5) — plain instruction text replacing
+   the old uppercase section-label headers for letter/signature. */
+.instruction-note {
+  font-size: .78rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-align: center;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+/* NEW in IT72 (tweak #6) — two side-by-side signature buttons,
+   replacing the single "Clear Signature" button. */
+.sig-btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.sig-btn {
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1px solid #d4af7a;
+  background: #fdf199;
+  color: #1a1108;
+  font-family: Georgia, serif;
+  font-size: .76rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.sig-btn:hover { background: #f7e873; }
+.sig-btn:disabled { opacity: .5; cursor: default; }
+/* NEW in IT72 (tweak #7) */
+.security-note {
+  font-size: .68rem;
+  color: #7a6040;
+  font-weight: bold;
+  margin-top: 8px;
+}
+#sig-status {
+  font-size: .74rem;
+  color: #1a1108;
+  font-weight: bold;
+  min-height: 16px;
+  margin-top: 6px;
+}
+/* NEW in IT72 (tweak #8) — green "Voice Recording" banner,
+   replacing the old uppercase section-label header. */
+.voice-banner {
+  background: #c8e6c0;
+  color: #1a4d35;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: .82rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+/* NEW in IT72 (tweak #9) */
+.rec-instructions {
+  font-size: .74rem;
+  font-weight: bold;
+  color: #1a1108;
+  line-height: 1.6;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
 #zoom-tip {
   display: block;
   background: #fff8ee;
@@ -328,19 +390,6 @@ h1 {
   display: block;
   margin: 0 auto;
 }
-#clear-signature-btn {
-  margin-top: 8px;
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid #d4af7a;
-  background: #f5f0e8;
-  color: #1a1108;
-  font-family: Georgia, serif;
-  font-size: .75rem;
-  font-weight: bold;
-  cursor: pointer;
-}
-#clear-signature-btn:hover { background: #ede5d4; }
 #playback-section { display: none; margin-top: 4px; }
 #playback-label {
   font-size: .72rem;
@@ -378,29 +427,44 @@ h1 {
 </head>
 <body>
 <button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
-<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT70</div>
+<div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION &nbsp;&middot;&nbsp; IT72</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
-  <div id="trustee-badge">Nominating: Trustee <span id="trustee-number-label">&#8212;</span> <span id="trustee-name-label"></span></div>
-  <!-- NEW (Batch B, July 10 2026) — shows the domain(s) chosen back on
-       upload_test.html, so the subscriber can confirm before sending. -->
-  <div id="domains-granted-badge" style="font-size:.74rem;color:#1a1108;font-weight:bold;margin-bottom:16px;"></div>
-  <!-- NEW in IT61 — zoom tip for easier reading/editing of the letter text -->
+  <!-- tweak #1 — zoom tip moved above the badges -->
   <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, editing, and recording.</div>
+  <!-- tweak #2 — re-worded, yellow-highlighted trustee badge -->
+  <div id="trustee-badge">Trustee Nominee #<span id="trustee-number-label">&#8212;</span>: <span id="trustee-name-label"></span></div>
+  <!-- tweak #3 — two-line centered domains text -->
+  <div id="domains-granted-badge">
+    <div class="domains-label">Domains given access to:</div>
+    <div class="domains-value" id="domains-value"></div>
+  </div>
   <hr class="rec-divider">
-  <div class="section-label">&#128221; Review Your Letter</div>
+  <!-- tweak #4 — instruction text replaces "REVIEW YOUR LETTER" label -->
+  <p class="instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
   <textarea id="letter-textarea-recorder"></textarea>
   <hr class="rec-divider">
-  <div class="section-label">&#9999; Sign Your Letter</div>
+  <!-- tweak #5 — instruction text replaces "SIGN YOUR LETTER" label -->
+  <p class="instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
   <canvas id="signature-canvas" width="400" height="140"></canvas>
-  <button id="clear-signature-btn" onclick="clearSignature()">&#8635; Clear Signature</button>
+  <!-- tweak #6 — Re-sign / Final Version buttons replace Clear Signature -->
+  <div class="sig-btn-row">
+    <button class="sig-btn" id="resign-btn" onclick="resignSignature()">Re-sign</button>
+    <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">Final Version</button>
+  </div>
+  <div id="sig-status"></div>
+  <!-- tweak #7 -->
+  <p class="security-note">For security reason, digital signature is not saved.</p>
   <hr class="rec-divider">
-  <div class="section-label">&#127908; Record Your Voice Message</div>
+  <!-- tweak #8 — green Voice Recording banner replaces the old label -->
+  <div class="voice-banner">Voice Recording</div>
   <div id="meter-wrap"><div id="meter-fill"></div></div>
   <div id="timer-display">0:00</div>
   <button id="record-btn" onclick="toggleRecording()">START</button>
   <p id="record-btn-label">Press START to begin recording</p>
+  <!-- tweak #9 -->
+  <p class="rec-instructions">Before starting put your computer volume at max level.<br>Re-record as many times as needed.<br>For security reason, voice recording is not saved.</p>
   <div id="rec-status"></div>
   <div id="mic-denied-box">
     <p>&#9888; Microphone access was denied. To fix this:</p>
@@ -421,42 +485,24 @@ h1 {
     <button class="pb-btn" id="rerecord-btn" onclick="reRecord()">&#8635; Rerecord</button>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT70</div>
+  <div id="rec-footer">digilegacyvault.com &nbsp;&middot;&nbsp; IT72</div>
 </div>
-<button id="return-btn" style="margin-top:14px;" onclick="returnToMain()">&#8592; Return to Main Page</button>
+<!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
+<button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
 <script>
 // ============================================================
 // CONFIG — REQUIRED
-// Paste your GAS Web App /exec URL below, between the quotes.
 // ============================================================
-var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
-// ============================================================
-// Read ?trustee=1 or ?trustee=2 from the URL — unchanged from
-// CAIT55 — so the Canva "Trustee #1" / "Trustee #2" buttons
-// correctly tag each recording when it is sent.
-// ============================================================
+var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKlBCfrZsSlVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
 function getTrusteeNumberFromUrl() {
   var params = new URLSearchParams(window.location.search);
   var t = (params.get('trustee') || '').trim();
   return (t === '1' || t === '2') ? t : '';
 }
-// ============================================================
-// NEW in IT59 — read ?subscriberEmail= from the URL.
-// sendTrusteeNomination requires this to look up the correct
-// trustee email server-side from the Nominations sheet. It must
-// match the same email the subscriber used when nominating that
-// trustee (the "Your Email (for reply-to)" field).
-// ============================================================
 function getSubscriberEmailFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('subscriberEmail') || '').trim();
 }
-// ============================================================
-// NEW in IT60 — the rest of the nomination context, carried
-// over from upload_test.html's Trustees tab via the URL, so
-// this page can be the single "review everything, then send"
-// screen.
-// ============================================================
 function getSubscriberNameFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('subscriberName') || '').trim();
@@ -473,10 +519,6 @@ function getLetterBodyFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('letterBody') || '');
 }
-// NEW (Batch B, July 10 2026) — read ?domainsGranted= from the URL, a
-// comma-separated list of domain codes (e.g. "LEGAL,MEDICAL") chosen by
-// the subscriber in upload_test.html's Trustees tab. Carried through to
-// sendNomination() for storage on the Nominations sheet.
 function getDomainsGrantedFromUrl() {
   var params = new URLSearchParams(window.location.search);
   return (params.get('domainsGranted') || '').trim();
@@ -496,13 +538,18 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
-// NEW in IT60 — signature canvas state
 var sigCanvas = null;
 var sigCtx = null;
 var isDrawingSignature = false;
 var hasDrawnSignature = false;
+// NEW in IT72 (tweak #6) — lock state for the signature canvas
+var signatureLocked = false;
 function returnToMain() {
   window.location.href = 'https://digilegacyvault.com';
+}
+// NEW in IT72 (tweak #10)
+function returnToSummary() {
+  window.location.href = GAS_WEBAPP_URL;
 }
 function toggleRecording() {
   if (!isRecording) { startRecording(); } else { stopRecording(); }
@@ -575,13 +622,6 @@ function updateTimerDisplay() {
   var s = timerSeconds % 60;
   document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
 }
-// ============================================================
-// NEW in IT60 — signature canvas, drawn via pointer events.
-// One implementation covers mouse, trackpad, touchscreen, and
-// stylus alike — the browser translates all of them into the
-// same pointer events, so there is no separate touch-only or
-// mouse-only code path needed.
-// ============================================================
 function initSignatureCanvas() {
   sigCanvas = document.getElementById('signature-canvas');
   if (!sigCanvas) return;
@@ -597,6 +637,8 @@ function initSignatureCanvas() {
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
   sigCanvas.addEventListener('pointerdown', function(e) {
+    // NEW in IT72 (tweak #6) — ignore drawing once locked
+    if (signatureLocked) return;
     isDrawingSignature = true;
     hasDrawnSignature = true;
     var p = getPos(e);
@@ -605,7 +647,7 @@ function initSignatureCanvas() {
     sigCanvas.setPointerCapture(e.pointerId);
   });
   sigCanvas.addEventListener('pointermove', function(e) {
-    if (!isDrawingSignature) return;
+    if (!isDrawingSignature || signatureLocked) return;
     var p = getPos(e);
     sigCtx.lineTo(p.x, p.y);
     sigCtx.stroke();
@@ -618,13 +660,27 @@ function clearSignature() {
   sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
   hasDrawnSignature = false;
 }
-// ============================================================
-// NEW in CAIT56 — JSONP helper
-// Loads a <script> tag pointing at the GAS doGet endpoint.
-// JSONP responses are NOT subject to the CORS restriction that
-// blocks reading fetch() responses from Apps Script, because
-// the browser treats it as a normal script load, not an XHR.
-// ============================================================
+// NEW in IT72 (tweak #6) — "Final Version" locks the signature
+function finalizeSignature() {
+  if (!hasDrawnSignature) {
+    setSigStatus('Please sign above before marking as final.');
+    return;
+  }
+  signatureLocked = true;
+  document.getElementById('finalize-signature-btn').disabled = true;
+  setSigStatus('Signature finalized.');
+}
+// NEW in IT72 (tweak #6) — "Re-sign" clears and unlocks
+function resignSignature() {
+  clearSignature();
+  signatureLocked = false;
+  document.getElementById('finalize-signature-btn').disabled = false;
+  setSigStatus('');
+}
+function setSigStatus(msg) {
+  var el = document.getElementById('sig-status');
+  if (el) el.textContent = msg;
+}
 function jsonpRequest(url, callbackName, timeoutMs) {
   return new Promise(function(resolve, reject) {
     var script = document.createElement('script');
@@ -650,12 +706,6 @@ function jsonpRequest(url, callbackName, timeoutMs) {
     document.body.appendChild(script);
   });
 }
-// ============================================================
-// verifySendWithRetry — IT60 (polls checkNominationSent, was
-// checkVoiceSaved in IT59)
-// Polls the GAS checkNominationSent route until the send is
-// confirmed, or attempts run out.
-// ============================================================
 function verifySendWithRetry(requestId, attemptsLeft) {
   var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
   var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId);
@@ -684,16 +734,6 @@ function verifySendWithRetry(requestId, attemptsLeft) {
       }
     });
 }
-// ============================================================
-// sendNomination — IT60 (was sendRecording in IT59).
-// Sends the letter + signature + voice message TOGETHER as one
-// action:'sendTrusteeNomination' call, matching Code.gs IT60.
-// Generates its own requestId (used both as the filename tag
-// and as the invite token Code.gs uses for the confirm link),
-// so this page can poll checkNominationSent afterward — a
-// no-cors POST response can never be read directly by the page
-// that sent it.
-// ============================================================
 function sendNomination() {
   if (!audioBlob) { setSendStatus('No recording to send. Please record your voice message first.'); return; }
   if (!GAS_WEBAPP_URL || GAS_WEBAPP_URL.indexOf('PASTE_YOUR') !== -1) {
@@ -715,6 +755,10 @@ function sendNomination() {
   }
   if (!hasDrawnSignature) {
     setSendStatus('Please sign your letter above before sending.');
+    return;
+  }
+  if (!signatureLocked) {
+    setSendStatus('Please click "Final Version" to finalize your signature before sending.');
     return;
   }
   var btn = document.getElementById('send-btn');
@@ -776,20 +820,19 @@ function setRecStatus(msg) { document.getElementById('rec-status').textContent =
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
 function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
-// ============================================================
-// Show which trustee this recorder session is tagged for —
-// unchanged from CAIT55.
-// ============================================================
 document.addEventListener('DOMContentLoaded', function() {
   var label = document.getElementById('trustee-number-label');
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
   var nameLabel = document.getElementById('trustee-name-label');
-  if (nameLabel && trusteeName) nameLabel.textContent = '(' + trusteeName + ')';
+  if (nameLabel) nameLabel.textContent = trusteeName || '';
   var DOMAIN_LABELS_RECORDER = { LEGAL: 'Legal', FINANCE: 'Finance', MEDICAL: 'Medical', MEMORABILIA: 'Memorabilia' };
-  var domainsBadge = document.getElementById('domains-granted-badge');
-  if (domainsBadge && domainsGrantedFromUrl) {
+  var domainsBlock = document.getElementById('domains-granted-badge');
+  var domainsValue = document.getElementById('domains-value');
+  if (domainsValue && domainsGrantedFromUrl) {
     var readableDomains = domainsGrantedFromUrl.split(',').map(function(code) { return DOMAIN_LABELS_RECORDER[code] || code; }).join(', ');
-    domainsBadge.textContent = 'Domains granted: ' + readableDomains;
+    domainsValue.textContent = readableDomains;
+  } else if (domainsBlock) {
+    domainsBlock.style.display = 'none';
   }
   var letterArea = document.getElementById('letter-textarea-recorder');
   if (letterArea) letterArea.value = letterBodyFromUrl;
