@@ -2,8 +2,22 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT76 | July 25, 2026 (not yet deployed as of
+ CURRENT RELEASE: IT77 | July 25, 2026 (not yet deployed as of
  writing — this is the version about to be pasted/committed).
+============================================================
+ IT77 | July 25, 2026 — after cross-checking against Alfredt's
+ Canva front-end process map (Payment -> Nominate Trustees -> Record
+ Voice -> Upload Photo -> Start Organizing Records -> Manage
+ Subscription), the persistent bottom-of-page button now relabels
+ itself from "Return to DLV Storage Summary" to "Proceed to Upload
+ Photo" once a send is confirmed (in verifySendWithRetry's success
+ branch) — guiding the subscriber to the correct NEXT step in that
+ defined sequence. Destination is unchanged (still
+ STORAGE_SUMMARY_URL / returnToSummary()), since the photo upload
+ lives inside Storage Summary's My Profile & Trustees modal; only the
+ label changes, and only after a confirmed send. Before sending (or
+ if verification fails and the button re-enables), it still reads
+ "Return to DLV Storage Summary" as before.
 ============================================================
  IT76 | July 25, 2026 — shortened the pre-recording page per
  Alfredt's live-testing feedback: the signature canvas and its
@@ -963,6 +977,15 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         var ts = document.getElementById('sent-timestamp');
         if (ts) ts.textContent = formatSentTimestamp(new Date());
         if (badge) badge.style.display = 'block';
+        // NEW — once the send is confirmed, relabel the persistent
+        // bottom nav button to point at the NEXT step in Alfredt's
+        // defined Canva flow (Record Voice -> Upload Photo), instead
+        // of the generic "Return to..." label. Destination is
+        // unchanged (STORAGE_SUMMARY_URL / returnToSummary()) since
+        // the Photo upload lives inside Storage Summary's My Profile
+        // & Trustees modal.
+        var returnBtn = document.getElementById('return-summary-btn');
+        if (returnBtn) returnBtn.textContent = 'Proceed to Upload Photo';
       } else if (attemptsLeft > 0) {
         setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
         setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
