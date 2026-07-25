@@ -2,8 +2,26 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT75 | July 22, 2026 (not yet deployed as of
+ CURRENT RELEASE: IT76 | July 25, 2026 (not yet deployed as of
  writing — this is the version about to be pasted/committed).
+============================================================
+ IT76 | July 25, 2026 — shortened the pre-recording page per
+ Alfredt's live-testing feedback: the signature canvas and its
+ Re-sign/Final Version button row sat between the letter textarea
+ and the START recording button, leaving too little visible when
+ zoomed in with Cmd+/Ctrl+ to read the letter clearly while
+ recording. Now, once "Final Version" (signature) is tapped, the
+ canvas, the two buttons, and the "Digital signature in the box
+ below..." instruction line all collapse (display:none), leaving
+ just a one-line "Signature finalized. [Edit signature]" status —
+ clicking "Edit signature" calls the existing resignSignature() and
+ restores the box + buttons exactly as before, so nothing is lost,
+ just hidden until needed again. Two other fixes shipped this same
+ round live only in upload_test.html (Storage Summary/GAS side, not
+ this file): the "ALFAs my Trustee" live-signature-name-sync bug in
+ the trustee-letter composer, and a new "Return to DLV Storage
+ Summary" button after saving a profile photo — see that file's own
+ header for detail.
 ============================================================
  IT75 | July 22, 2026 — post-send-flow polish, from Alfredt's review
  of the live IT74 page. Also: removed the visible "· IT[n]" version
@@ -599,10 +617,10 @@ h1 {
   <textarea id="letter-textarea-recorder"></textarea>
   <hr class="rec-divider">
   <!-- tweak #5 — instruction text replaces "SIGN YOUR LETTER" label -->
-  <p class="instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
+  <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
   <canvas id="signature-canvas" width="400" height="140"></canvas>
   <!-- tweak #6 — Re-sign / Final Version buttons replace Clear Signature -->
-  <div class="sig-btn-row">
+  <div class="sig-btn-row" id="sig-btn-row">
     <button class="sig-btn" id="resign-btn" onclick="resignSignature()">Re-sign</button>
     <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">Final Version</button>
   </div>
@@ -849,13 +867,28 @@ function finalizeSignature() {
   }
   signatureLocked = true;
   document.getElementById('finalize-signature-btn').disabled = true;
-  setSigStatus('Signature finalized.');
+  // NEW in IT76 — collapse the signature box + Re-sign/Final Version
+  // buttons once finalized, per Alfredt's request (shortens the page so
+  // Cmd+/Ctrl+ zoom leaves more room to read the letter while recording).
+  // A small inline link replaces them so the subscriber can still
+  // re-sign without reloading the page.
+  document.getElementById('signature-canvas').style.display = 'none';
+  document.getElementById('sig-btn-row').style.display = 'none';
+  var sigNote = document.getElementById('sig-instruction-note');
+  if (sigNote) sigNote.style.display = 'none';
+  var sigStatusEl = document.getElementById('sig-status');
+  if (sigStatusEl) sigStatusEl.innerHTML = 'Signature finalized. <a href="#" onclick="resignSignature();return false;">Edit signature</a>';
 }
 // NEW in IT72 (tweak #6) — "Re-sign" clears and unlocks
 function resignSignature() {
   clearSignature();
   signatureLocked = false;
   document.getElementById('finalize-signature-btn').disabled = false;
+  // NEW in IT76 — restore the box + buttons when re-signing
+  document.getElementById('signature-canvas').style.display = '';
+  document.getElementById('sig-btn-row').style.display = '';
+  var sigNote = document.getElementById('sig-instruction-note');
+  if (sigNote) sigNote.style.display = '';
   setSigStatus('');
 }
 function setSigStatus(msg) {
