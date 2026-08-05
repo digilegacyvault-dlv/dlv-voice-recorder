@@ -2,8 +2,42 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT77 | July 25, 2026 (not yet deployed as of
+ CURRENT RELEASE: IT78 | August 5, 2026 (not yet deployed as of
  writing — this is the version about to be pasted/committed).
+============================================================
+ IT78 | August 5, 2026 — 3 tweaks from Alfredt's live-test
+ screenshots (filenames doubled as the action items):
+   1) "take out Return to Main Page on top" — removed the persistent
+      top #return-btn ("&#8592; Return to Main Page", linked to the
+      public digilegacyvault.com marketing page) entirely, along with
+      its CSS and the now-unused returnToMain() function. Resolves the
+      "still undecided" open item from the July 25 carry-over — the
+      button was flagged as risking sending an already-active
+      subscriber to the wrong place mid-task; removing it rather than
+      repointing it, per this round's screenshots.
+   2) "allow use of microphone kept appearing 3x" — startRecording()
+      previously called navigator.mediaDevices.getUserMedia() fresh on
+      EVERY Start press, and stopRecording() fully released the mic
+      track every time a recording stopped
+      (audioStream.getTracks().forEach(t=>t.stop())). That forced a
+      brand-new permission request — and in practice a repeat
+      "Use microphone?" prompt — on every single re-record within the
+      same page visit, not just once per visit. Fixed by acquiring the
+      mic stream (and AudioContext/analyser) ONCE and reusing it for
+      every subsequent Start press; stopRecording() now only stops the
+      MediaRecorder, not the underlying mic track. The stream is
+      released for real once the nomination send is confirmed (new
+      releaseMicStream(), called from verifySendWithRetry's success
+      branch) or if mic access is denied. This does not change what a
+      trustee nominee sees on their very first Start press (still one
+      permission prompt) but eliminates the repeat prompts on re-record
+      within the same visit.
+   3) "Proceed to Upload Photo must be directed on the exact page" —
+      see upload_test.html's own header for the matching GAS-side fix;
+      this file's returnToSummary()/STORAGE_SUMMARY_URL now carries a
+      &openPhotoTab=1 query param so the Storage Summary page opens
+      directly into the My Profile & Trustees modal's Photo tab
+      instead of landing on the general summary page.
 ============================================================
  IT77 | July 25, 2026 — after cross-checking against Alfredt's
  Canva front-end process map (Payment -> Nominate Trustees -> Record
@@ -188,27 +222,11 @@ body {
   justify-content: center;
   padding: 24px;
 }
-#return-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .5rem 1.2rem;
-  background: #1a1108;
-  color: #ffffff !important;
-  border: none;
-  border-radius: 30px;
-  font-family: Georgia, serif;
-  font-size: .78rem; font-weight: bold;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  margin-bottom: 12px;
-  transition: opacity .2s;
-  text-decoration: none;
-}
-#return-btn:hover { opacity: .82; }
+/* REMOVED in IT78 — #return-btn (top "Return to Main Page" button)
+   and its CSS were deleted per Alfredt's request. #return-summary-btn
+   below (the bottom, post-review button) is unaffected and unchanged. */
 /* NEW in IT72 (tweak #10) — bottom return button styled the same
-   as #return-btn but with its own id so it can point elsewhere. */
+   as the old top button but with its own id so it can point elsewhere. */
 #return-summary-btn {
   display: inline-flex;
   align-items: center;
@@ -606,7 +624,7 @@ h1 {
 </style>
 </head>
 <body>
-<button id="return-btn" onclick="returnToMain()">&#8592; Return to Main Page</button>
+<!-- REMOVED in IT78 — top "Return to Main Page" button deleted -->
 <div id="rec-topbar">DIGI LEGACY VAULT &nbsp;&middot;&nbsp; TRUSTEE NOMINATION</div>
 <div id="recorder-card">
   <h1>&#9997; Trustee Nomination</h1>
@@ -742,6 +760,9 @@ var timerSeconds = 0;
 var analyserNode = null;
 var meterInterval = null;
 var audioStream = null;
+// NEW in IT78 — cached AudioContext, reused across re-records so the
+// mic stream (and its permission grant) doesn't have to be re-acquired.
+var audioCtx = null;
 var sigCanvas = null;
 var sigCtx = null;
 var isDrawingSignature = false;
@@ -751,66 +772,93 @@ var signatureLocked = false;
 // NEW in IT73 (item 11b/11c) — lock state for the recording,
 // parallel to signatureLocked.
 var recordingLocked = false;
-function returnToMain() {
-  window.location.href = 'https://digilegacyvault.com';
-}
+// REMOVED in IT78 — returnToMain() deleted along with the top button
+// it powered.
 // NEW in IT72 (tweak #10), FIXED in IT73 — was pointed at
 // GAS_WEBAPP_URL (wrong deployment, 404s), now points at the
 // verified-live STORAGE_SUMMARY_URL instead.
+// CHANGED in IT78 — appends &openPhotoTab=1 so the Storage Summary
+// page opens directly into the My Profile & Trustees modal's Photo
+// tab (per "must be directed on the exact page"), instead of landing
+// on the general summary page and requiring extra navigation.
 function returnToSummary() {
-  window.location.href = STORAGE_SUMMARY_URL;
+  var sep = STORAGE_SUMMARY_URL.indexOf('?') > -1 ? '&' : '?';
+  window.location.href = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1';
 }
 function toggleRecording() {
   if (!isRecording) { startRecording(); } else { stopRecording(); }
 }
+// CHANGED in IT78 — startRecording() now reuses an already-granted mic
+// stream (and its AudioContext/analyser) instead of calling
+// getUserMedia fresh on every Start press. Previously every Start
+// press requested the mic again, and stopRecording() fully released
+// the track each time, so a browser could show a fresh "Use
+// microphone?" prompt on every single re-record within one visit —
+// reported live as the dialog "kept appearing 3x". Now getUserMedia is
+// called at most once per page visit; the stream is released for real
+// only once the send is confirmed (releaseMicStream(), called from
+// verifySendWithRetry) or if access is denied.
 function startRecording() {
   hideMicDenied();
+  if (audioStream) {
+    beginRecordingWithStream(audioStream);
+    return;
+  }
   setRecStatus('Requesting microphone access…');
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(function(stream) {
       audioStream = stream;
-      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      var source = audioCtx.createMediaStreamSource(stream);
-      analyserNode = audioCtx.createAnalyser();
-      analyserNode.fftSize = 256;
-      source.connect(analyserNode);
-      startMeter();
-      mediaRecorder = new MediaRecorder(stream);
-      audioChunks = [];
-      mediaRecorder.addEventListener('dataavailable', function(e) {
-        if (e.data.size > 0) audioChunks.push(e.data);
-      });
-      mediaRecorder.addEventListener('stop', function() {
-        audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        var url = URL.createObjectURL(audioBlob);
-        document.getElementById('audio-player').src = url;
-        document.getElementById('playback-section').style.display = 'block';
-        // NEW in IT73 (item 11f) — collapse to the shortened page
-        // once a recording exists.
-        var preContent = document.getElementById('pre-recording-content');
-        if (preContent) preContent.style.display = 'none';
-        setRecStatus('Recording complete. Review and save below.');
-      });
-      mediaRecorder.start();
-      isRecording = true;
-      var btn = document.getElementById('record-btn');
-      btn.textContent = 'STOP';
-      btn.classList.add('recording');
-      document.getElementById('record-btn-label').textContent = 'Recording in progress…';
-      setRecStatus('Recording started — you may speak now.');
-      timerSeconds = 0;
-      updateTimerDisplay();
-      timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+      beginRecordingWithStream(stream);
     })
     .catch(function() {
       setRecStatus('');
       showMicDenied();
     });
 }
+// NEW in IT78 — split out of startRecording() so both the first grant
+// and any reused stream go through the same setup path.
+function beginRecordingWithStream(stream) {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var source = audioCtx.createMediaStreamSource(stream);
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
+    source.connect(analyserNode);
+  }
+  startMeter();
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+  mediaRecorder.addEventListener('dataavailable', function(e) {
+    if (e.data.size > 0) audioChunks.push(e.data);
+  });
+  mediaRecorder.addEventListener('stop', function() {
+    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    var url = URL.createObjectURL(audioBlob);
+    document.getElementById('audio-player').src = url;
+    document.getElementById('playback-section').style.display = 'block';
+    // NEW in IT73 (item 11f) — collapse to the shortened page
+    // once a recording exists.
+    var preContent = document.getElementById('pre-recording-content');
+    if (preContent) preContent.style.display = 'none';
+    setRecStatus('Recording complete. Review and save below.');
+  });
+  mediaRecorder.start();
+  isRecording = true;
+  var btn = document.getElementById('record-btn');
+  btn.textContent = 'STOP';
+  btn.classList.add('recording');
+  document.getElementById('record-btn-label').textContent = 'Recording in progress…';
+  setRecStatus('Recording started — you may speak now.');
+  timerSeconds = 0;
+  updateTimerDisplay();
+  timerInterval = setInterval(function() { timerSeconds++; updateTimerDisplay(); }, 1000);
+}
 function retryMic() { hideMicDenied(); startRecording(); }
+// CHANGED in IT78 — no longer stops/releases audioStream's tracks
+// here; the mic stays granted for the rest of this visit so re-record
+// doesn't re-prompt. See releaseMicStream() for the real cleanup.
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-  if (audioStream) { audioStream.getTracks().forEach(function(t) { t.stop(); }); audioStream = null; }
   clearInterval(timerInterval);
   clearInterval(meterInterval);
   document.getElementById('meter-fill').style.width = '0%';
@@ -819,6 +867,16 @@ function stopRecording() {
   btn.textContent = 'START';
   btn.classList.remove('recording');
   document.getElementById('record-btn-label').textContent = 'Press START to record again';
+}
+// NEW in IT78 — actually releases the mic track. Called once the send
+// is confirmed (nothing left to re-record) or if the user denies mic
+// access (nothing was granted in the first place).
+function releaseMicStream() {
+  if (audioStream) {
+    audioStream.getTracks().forEach(function(t) { t.stop(); });
+    audioStream = null;
+  }
+  audioCtx = null;
 }
 function startMeter() {
   var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
@@ -986,6 +1044,10 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // & Trustees modal.
         var returnBtn = document.getElementById('return-summary-btn');
         if (returnBtn) returnBtn.textContent = 'Proceed to Upload Photo';
+        // NEW in IT78 — release the mic for real now that nothing is
+        // left to re-record; nothing was holding it open unnecessarily
+        // before this, but this makes the cleanup explicit and final.
+        releaseMicStream();
       } else if (attemptsLeft > 0) {
         setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
         setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
