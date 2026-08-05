@@ -2,7 +2,20 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT79 | August 5, 2026
+ CURRENT RELEASE: IT80 | August 5, 2026
+============================================================
+ IT80 | August 5, 2026 — after a confirmed nomination send, the
+ subscriber's next stop (Photo tab, via returnToSummary()) should be
+ able to show a "your nominee's response is being monitored" note —
+ but only for this exact just-completed nomination, not for a casual
+ later photo update. Since there's no session/login system, that has
+ to travel as a URL param like everything else here. returnToSummary()
+ now also appends &trusteeJustSent=<1 or 2> (only once a send is
+ confirmed, alongside the existing &openPhotoTab=1) so the Storage
+ Summary / Photo tab side (see upload_test.html's own header) knows
+ which trustee number to reference and that it should show the note at
+ all. See Code.gs and upload_test.html headers for the rest of this
+ feature.
 ============================================================
  IT79 | August 5, 2026 — small live-test tweak: the yellow
  "RECORDED INVITATION SENT: <date> at <time>" badge could wrap so
@@ -788,9 +801,22 @@ var recordingLocked = false;
 // page opens directly into the My Profile & Trustees modal's Photo
 // tab (per "must be directed on the exact page"), instead of landing
 // on the general summary page and requiring extra navigation.
+// CHANGED in IT80 — once a send has been confirmed (nominationSent is
+// true, set in verifySendWithRetry's success branch), also appends
+// &trusteeJustSent=<1 or 2> so the Photo tab can show a one-time
+// "your nominee's response is being monitored" note referencing the
+// right trustee number. Not appended before a send is confirmed —
+// returnToSummary() is also reachable from the button's pre-send
+// "Return to DLV Storage Summary" state, which should NOT trigger
+// that note.
+var nominationSent = false;
 function returnToSummary() {
   var sep = STORAGE_SUMMARY_URL.indexOf('?') > -1 ? '&' : '?';
-  window.location.href = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1';
+  var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1';
+  if (nominationSent && trusteeNumber) {
+    url += '&trusteeJustSent=' + encodeURIComponent(trusteeNumber);
+  }
+  window.location.href = url;
 }
 function toggleRecording() {
   if (!isRecording) { startRecording(); } else { stopRecording(); }
@@ -1054,6 +1080,9 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // & Trustees modal.
         var returnBtn = document.getElementById('return-summary-btn');
         if (returnBtn) returnBtn.textContent = 'Proceed to Upload Photo';
+        // NEW in IT80 — flags returnToSummary() to append
+        // &trusteeJustSent=<N> now that a send is actually confirmed.
+        nominationSent = true;
         // NEW in IT78 — release the mic for real now that nothing is
         // left to re-record; nothing was holding it open unnecessarily
         // before this, but this makes the cleanup explicit and final.
