@@ -2,8 +2,15 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT78 | August 5, 2026 (not yet deployed as of
- writing — this is the version about to be pasted/committed).
+ CURRENT RELEASE: IT79 | August 5, 2026
+============================================================
+ IT79 | August 5, 2026 — small live-test tweak: the yellow
+ "RECORDED INVITATION SENT: <date> at <time>" badge could wrap so
+ that "PM" (or "AM") landed alone on its own line, separated from
+ the time it belongs to ("...1:27" / "PM" on the next line).
+ formatSentTimestamp() now inserts a non-breaking space between the
+ minute and the AM/PM meridiem, so "1:27 PM" always wraps (or
+ doesn't wrap) together as one unit.
 ============================================================
  IT78 | August 5, 2026 — 3 tweaks from Alfredt's live-test
  screenshots (filenames doubled as the action items):
@@ -988,8 +995,11 @@ function finalizeRecording() {
   if (readyBanner) readyBanner.style.display = 'block';
 }
 // NEW in IT73 — formats a Date as e.g. "July 22, 2026, 3:47 PM"
+// CHANGED in IT79 — a non-breaking space now joins the minute and the
+// AM/PM meridiem so the badge can't wrap "PM" onto its own line.
 function formatSentTimestamp(d) {
-  return d.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  var s = d.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return s.replace(/ (AM|PM)$/, ' $1');
 }
 function jsonpRequest(url, callbackName, timeoutMs) {
   return new Promise(function(resolve, reject) {
