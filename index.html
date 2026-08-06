@@ -2,7 +2,22 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT81 | August 6, 2026
+ CURRENT RELEASE: IT82 | August 6, 2026
+============================================================
+ IT82 | August 6, 2026 — the Photo tab's email prefill (added IT80)
+ only copied FROM the main Storage Summary page's "Subscriber Email
+ (optional)" field, which is usually empty when a subscriber arrives
+ via the actual nomination flow (Send -> Proceed to Upload Photo) —
+ looked like the prefill had "disappeared" from the day before, when
+ Alfredt had typed into that other field directly during testing.
+ Real fix: returnToSummary() now also appends
+ &subscriberEmail=<encodeURIComponent(subscriberEmail)> (this page
+ already knows it — same value used as the reply-to for the
+ nomination) whenever it's known, alongside the existing
+ &openPhotoTab=1 / &trusteeJustSent=<N> params, so upload_test.html
+ can prefill the Photo tab's email field directly from the actual
+ nomination, not indirectly from an unrelated field. See
+ upload_test.html and Code.gs headers for the receiving half.
 ============================================================
  IT81 | August 6, 2026 — from Alfredt's live-test feedback: once a
  send is CONFIRMED, the "Review your voice recording" block (the
@@ -828,6 +843,14 @@ function returnToSummary() {
   var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1';
   if (nominationSent && trusteeNumber) {
     url += '&trusteeJustSent=' + encodeURIComponent(trusteeNumber);
+  }
+  // NEW in IT82 — pass along the subscriber's email (already known from
+  // this page's own URL params, same value used as the reply-to for the
+  // nomination) so the Photo tab can prefill directly from the actual
+  // nomination instead of indirectly via the main form's Subscriber
+  // Email field, which is usually empty at this point in the flow.
+  if (subscriberEmail) {
+    url += '&subscriberEmail=' + encodeURIComponent(subscriberEmail);
   }
   window.location.href = url;
 }
