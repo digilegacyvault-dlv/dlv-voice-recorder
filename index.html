@@ -2,7 +2,20 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT80 | August 5, 2026
+ CURRENT RELEASE: IT81 | August 6, 2026
+============================================================
+ IT81 | August 6, 2026 — from Alfredt's live-test feedback: once a
+ send is CONFIRMED, the "Review your voice recording" block (the
+ "Review your voice recording" label, the audio player, and the
+ Unlimited Re-recording / FINAL Version button row) is now hidden —
+ same collapse-once-done treatment already used elsewhere on this page
+ (pre-recording content collapses on first recording; signature box
+ collapses on Final Version). The "For security reason, voice
+ recording is not saved." note and the RECORDED INVITATION SENT badge
+ are unaffected — still shown as before. Implemented in
+ verifySendWithRetry()'s success branch; the button row div was given
+ id="rec-btn-row" for targeting (its .rec-btn-row class/styling is
+ unchanged).
 ============================================================
  IT80 | August 5, 2026 — after a confirmed nomination send, the
  subscriber's next stop (Photo tab, via returnToSummary()) should be
@@ -707,7 +720,7 @@ h1 {
     <div id="playback-label">Review your voice recording</div>
     <audio id="audio-player" controls></audio>
     <!-- item 11b — Unlimited Re-recording / FINAL Version row -->
-    <div class="rec-btn-row">
+    <div class="rec-btn-row" id="rec-btn-row">
       <button class="rec-dark-btn" id="rerecord-btn" onclick="reRecord()">Unlimited Re-recording</button>
       <button class="rec-dark-btn" id="finalize-recording-btn" onclick="finalizeRecording()">FINAL Version</button>
     </div>
@@ -1083,6 +1096,15 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // NEW in IT80 — flags returnToSummary() to append
         // &trusteeJustSent=<N> now that a send is actually confirmed.
         nominationSent = true;
+        // NEW in IT81 — collapse the "Review your voice recording"
+        // block now that the recording has actually been sent; the
+        // security note and the sent-badge stay visible as before.
+        var playbackLabel = document.getElementById('playback-label');
+        if (playbackLabel) playbackLabel.style.display = 'none';
+        var audioPlayer = document.getElementById('audio-player');
+        if (audioPlayer) audioPlayer.style.display = 'none';
+        var recBtnRow = document.getElementById('rec-btn-row');
+        if (recBtnRow) recBtnRow.style.display = 'none';
         // NEW in IT78 — release the mic for real now that nothing is
         // left to re-record; nothing was holding it open unnecessarily
         // before this, but this makes the cleanup explicit and final.
