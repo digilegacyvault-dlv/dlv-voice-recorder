@@ -158,6 +158,7 @@
 
   <div id="idleState">
     <button id="recordBtn" type="button" class="btn-primary">&#127908; Start Recording</button>
+    <p id="waitingMsg" style="display:none; font-size:.85rem; color:#6b5d47; margin-top:.9rem; line-height:1.5;"></p>
   </div>
 
   <div id="recordingState" style="display:none;">
@@ -214,6 +215,7 @@
   var emailInput = document.getElementById('emailInput');
   var sendBtn = document.getElementById('sendBtn');
   var sendMsg = document.getElementById('sendMsg');
+  var waitingMsg = document.getElementById('waitingMsg');
 
   var mediaRecorder = null;
   var audioChunks = [];
@@ -230,7 +232,7 @@
   }
 
   function formatTime(totalSeconds) {
-  var m = Math.floor(totalSeconds / 60);
+    var m = Math.floor(totalSeconds / 60);
     var s = totalSeconds % 60;
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
@@ -254,8 +256,31 @@
       showState('error');
       return;
     }
+
+    // NEW 9/18 (2nd pass) -- Alfa live-tested and the button appeared to do
+    // nothing: no error, no recording state. getUserMedia() gives ZERO
+    // feedback while its permission prompt is pending, so a slow or easy-
+    // to-miss browser prompt looked identical to "broken." This gives the
+    // visitor an on-page hint immediately, then escalates to concrete
+    // troubleshooting if nothing has resolved after 8 seconds -- which is
+    // also exactly what happens if the OS itself (not just the site) is
+    // blocking Chrome's mic access, since in that case Chrome sometimes
+    // can't even surface its own permission prompt.
+    recordBtn.disabled = true;
+    waitingMsg.style.display = 'block';
+    waitingMsg.textContent = 'Requesting microphone access… look for a permission prompt near your browser’s address bar.';
+    var settled = false;
+    var timeoutId = setTimeout(function () {
+      if (settled) return;
+      waitingMsg.textContent = 'Still waiting. If you didn’t see a permission prompt: check this site’s microphone permission (the icon just left of the address bar), and check that your computer’s system privacy settings allow this browser to use the microphone.';
+    }, 8000);
+
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(function (stream) {
+        settled = true;
+        clearTimeout(timeoutId);
+        recordBtn.disabled = false;
+        waitingMsg.style.display = 'none';
         audioChunks = [];
         mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.addEventListener('dataavailable', function (e) {
@@ -277,6 +302,10 @@
         startTimer();
       })
       .catch(function () {
+        settled = true;
+        clearTimeout(timeoutId);
+        recordBtn.disabled = false;
+        waitingMsg.style.display = 'none';
         showState('error');
       });
   }
@@ -301,7 +330,7 @@
     }
 
     sendBtn.disabled = true;
-    sendMsg.textContent = 'Sending…;
+    sendMsg.textContent = 'Sending…';
     sendMsg.className = '';
 
     var reader = new FileReader();
