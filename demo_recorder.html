@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Try Me First — Record a Voice Message | DIGI Legacy Vault</title>
+<!--
+  DLV "Try Me First" — standalone demo voice recorder
+  =====================================================
+  WHY THIS FILE EXISTS (added 2026-09-18):
+  The real Try Me First demo lives inside the Apps Script web app
+  (upload_test.html, action=demoPreview), but Google wraps every page
+  Apps Script serves in a sandboxed iframe whose Permissions-Policy does
+  NOT include "microphone" -- confirmed by inspecting the live iframe's
+  `allow` attribute. That means no page served by Apps Script can ever
+  get mic access, no matter what the code does or what the visitor's
+  browser permission is set to. This page exists purely to live outside
+  that iframe (as a normal GitHub Pages page, same as this repo's real
+  index.html trustee recorder) so MediaRecorder can actually work.
+
+  This is a demo-only sibling of index.html -- it does NOT touch the
+  real nomination flow, the real Nominations sheet, or Drive storage.
+  It reuses the same DLV_TryMeFirst_VoiceWidget_v1.html state machine
+  (idle / recording / playback / error) plus an email-send step, POSTing
+  straight to the existing sendTrusteeNominationDemo doPost action in
+  Code.gs -- same pattern (fetch, mode:'no-cors', text/plain body) this
+  repo's own index.html already uses successfully for the real send, so
+  this is a proven-working approach, not a new one.
+
+  Launched via window.open() from upload_test.html's demo widget, which
+  passes the shared demo session id as a `sid` URL param so the
+  per-session send cap (2/session) lines up on both sides. If opened
+  directly without `sid`, a fresh one is generated client-side -- the
+  server-side GLOBAL cap (30/hour, project-wide) still applies as the
+  real backstop either way.
+
+  GAS_WEBAPP_URL below points at the Test Deployment (/dev) URL for now
+  -- correct for Alfa's own live-testing (he has editor access to the
+  project), but NOT reachable by anonymous public visitors. Before this
+  page goes out to real Try Me First visitors, swap this constant to the
+  production /exec URL from a fresh "New version" deployment (see
+  DLV_Priority_List_2026-09-17.md, Priority 1) once the record/playback/
+  email round trip is confirmed working end to end.
+-->
+<style>
+  :root {
+    --gold: #7a5c2e;
+    --cream: #faf7f2;
+    --dark: #1a1108;
+    --border: #c8b99a;
+    --radius: 8px;
+    --shadow: 0 2px 10px rgba(0,0,0,.10);
+    --btn-green: #2d5a27;
+    --btn-red: #a02b2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #efe8da;
+    font-family: Georgia, serif;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .badge {
+    display: inline-block;
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    border-radius: 999px;
+    padding: 3px 12px;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    color: var(--gold);
+    margin: 0 0 .5rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .sub {
+    font-size: .92rem;
+    color: var(--dark);
+    line-height: 1.55;
+    margin-bottom: 1.4rem;
+  }
+  .privacy {
+    font-size: .78rem;
+    color: #6b5d47;
+    line-height: 1.5;
+    margin: 1.2rem 0 0;
+    border-top: 1px solid var(--border);
+    padding-top: .9rem;
+  }
+  button {
+    font-family: Georgia, serif;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--btn-green); color: #fff !important; border: none;
+    padding: 14px 30px; font-size: 1rem; font-weight: bold; border-radius: var(--radius);
+  }
+  .btn-stop {
+    background: var(--btn-red); color: #fff !important; border: none;
+    padding: 14px 30px; font-size: 1rem; font-weight: bold; border-radius: var(--radius);
+  }
+  .btn-outline {
+    background: transparent; color: var(--gold) !important; border: 1px solid var(--gold);
+    padding: 10px 22px; font-size: .9rem; font-weight: bold; border-radius: var(--radius);
+  }
+  .btn-send {
+    background: var(--gold); color: #fff !important; border: none;
+    padding: 12px 26px; font-size: .95rem; font-weight: bold; border-radius: var(--radius);
+    width: 100%; margin-top: .6rem;
+  }
+  input[type="email"] {
+    width: 100%; padding: 11px 12px; font-size: .95rem; font-family: Georgia, serif;
+    border: 1px solid var(--border); border-radius: var(--radius); margin-top: .3rem;
+  }
+  #recStatus { font-size: 1rem; color: var(--btn-red); font-weight: bold; margin-bottom: .8rem; }
+  #playbackLabel { font-size: .95rem; font-weight: bold; margin-bottom: .6rem; }
+  audio { width: 100%; margin-bottom: 1rem; }
+  .send-row { text-align: left; margin-top: 1.2rem; }
+  .send-row label { font-size: .85rem; font-weight: bold; display: block; }
+  #sendMsg { font-size: .85rem; margin-top: .6rem; min-height: 1.1em; }
+  #sendMsg.ok { color: var(--btn-green); font-weight: bold; }
+  #sendMsg.err { color: var(--btn-red); }
+  #errorState p { font-size: .9rem; color: var(--btn-red); }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <span class="badge">DIGI Legacy Vault &middot; Try Me First Demo</span>
+  <h1>Record a Message for Your Trustee</h1>
+  <p class="sub">
+    Try it yourself — record a short personal message the way you'd leave one
+    for someone you trust, then have it emailed to yourself so you can hear
+    how it arrives.
+  </p>
+
+  <div id="idleState">
+    <button id="recordBtn" type="button" class="btn-primary">&#127908; Start Recording</button>
+  </div>
+
+  <div id="recordingState" style="display:none;">
+    <p id="recStatus">&#9679; Recording&hellip; <span id="timer">0:00</span></p>
+    <button id="stopBtn" type="button" class="btn-stop">&#9632; Stop</button>
+  </div>
+
+  <div id="playbackState" style="display:none;">
+    <p id="playbackLabel">Here's your message:</p>
+    <audio id="audioPlayer" controls></audio>
+    <div>
+      <button id="rerecordBtn" type="button" class="btn-outline">Record Again</button>
+    </div>
+
+    <div class="send-row">
+      <label for="emailInput">Email me this recording</label>
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
+      <button id="sendBtn" type="button" class="btn-send">Email Me This Recording</button>
+      <div id="sendMsg"></div>
+    </div>
+  </div>
+
+  <div id="errorState" style="display:none;">
+    <p>We couldn't access your microphone. You may need to allow microphone
+      access for this site in your browser, or try a different browser.</p>
+  </div>
+
+  <p class="privacy">
+    This is a demo, separate from DIGI Legacy Vault's real trustee system.
+    Your recording is only emailed to the address you type above — it is
+    never saved to any account, Drive folder, or trustee record.
+  </p>
+</div>
+
+<script>
+(function () {
+  // GAS_WEBAPP_URL: Test Deployment (/dev) for now -- see file header
+  // comment for why, and what has to change before public launch.
+  var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxKTnysmgVKtVkeavb_449Vth0QyK3E29lNrEFB7H7E/dev';
+
+  var params = new URLSearchParams(window.location.search);
+  var demoSessionId = params.get('sid') ||
+    ('demo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
+
+  var idleState = document.getElementById('idleState');
+  var recordingState = document.getElementById('recordingState');
+  var playbackState = document.getElementById('playbackState');
+  var errorState = document.getElementById('errorState');
+  var recordBtn = document.getElementById('recordBtn');
+  var stopBtn = document.getElementById('stopBtn');
+  var rerecordBtn = document.getElementById('rerecordBtn');
+  var timerEl = document.getElementById('timer');
+  var audioPlayer = document.getElementById('audioPlayer');
+  var emailInput = document.getElementById('emailInput');
+  var sendBtn = document.getElementById('sendBtn');
+  var sendMsg = document.getElementById('sendMsg');
+
+  var mediaRecorder = null;
+  var audioChunks = [];
+  var audioBlob = null;
+  var timerInterval = null;
+  var secondsElapsed = 0;
+  var currentObjectUrl = null;
+
+  function showState(state) {
+    idleState.style.display = state === 'idle' ? 'block' : 'none';
+    recordingState.style.display = state === 'recording' ? 'block' : 'none';
+    playbackState.style.display = state === 'playback' ? 'block' : 'none';
+    errorState.style.display = state === 'error' ? 'block' : 'none';
+  }
+
+  function formatTime(totalSeconds) {
+  var m = Math.floor(totalSeconds / 60);
+    var s = totalSeconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function startTimer() {
+    secondsElapsed = 0;
+    timerEl.textContent = formatTime(0);
+    timerInterval = setInterval(function () {
+      secondsElapsed++;
+      timerEl.textContent = formatTime(secondsElapsed);
+      if (secondsElapsed >= 120) stopRecording(); // soft cap, matches widget v1
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showState('error');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (stream) {
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.addEventListener('dataavailable', function (e) {
+          if (e.data && e.data.size > 0) audioChunks.push(e.data);
+        });
+        mediaRecorder.addEventListener('stop', function () {
+          stream.getTracks().forEach(function (track) { track.stop(); });
+          audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+          currentObjectUrl = URL.createObjectURL(audioBlob);
+          audioPlayer.src = currentObjectUrl;
+          sendMsg.textContent = '';
+          sendMsg.className = '';
+          sendBtn.disabled = false;
+          showState('playback');
+        });
+        mediaRecorder.start();
+        showState('recording');
+        startTimer();
+      })
+      .catch(function () {
+        showState('error');
+      });
+  }
+
+  function stopRecording() {
+    stopTimer();
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+
+  function sendRecording() {
+    var email = (emailInput.value || '').trim();
+    var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      sendMsg.textContent = 'Please enter a valid email address.';
+      sendMsg.className = 'err';
+      return;
+    }
+    if (!audioBlob) {
+      sendMsg.textContent = 'No recording to send — please record a message first.';
+      sendMsg.className = 'err';
+      return;
+    }
+
+    sendBtn.disabled = true;
+    sendMsg.textContent = 'Sending…;
+    sendMsg.className = '';
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var base64 = e.target.result.split(',')[1];
+      var fileName = 'DemoVoiceMessage_' + demoSessionId + '.webm';
+      var payload = {
+        action: 'sendTrusteeNominationDemo',
+        recipientEmail: email,
+        fileName: fileName,
+        mimeType: 'audio/webm',
+        base64Data: base64,
+        durationSeconds: secondsElapsed,
+        demoSessionId: demoSessionId
+      };
+      // Same fire-and-forget pattern this repo's real index.html already
+      // uses for the live trustee send: mode:'no-cors' means we can't read
+      // the response body/status, only whether the network request itself
+      // failed. The backend enforces the real send caps (per-session +
+      // global) server-side regardless of what this page shows.
+      fetch(GAS_WEBAPP_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      })
+      .then(function () {
+        sendMsg.textContent = 'Sent! Check your inbox in a moment — and if you don’t see it, check spam.';
+        sendMsg.className = 'ok';
+      })
+      .catch(function (err) {
+        sendMsg.textContent = 'Something went wrong sending your recording. (' + err.message + ')';
+        sendMsg.className = 'err';
+        sendBtn.disabled = false;
+      });
+    };
+    reader.readAsDataURL(audioBlob);
+  }
+
+  recordBtn.addEventListener('click', startRecording);
+  stopBtn.addEventListener('click', stopRecording);
+  rerecordBtn.addEventListener('click', function () { showState('idle'); });
+  sendBtn.addEventListener('click', sendRecording);
+})();
+</script>
+
+</body>
+</html>
