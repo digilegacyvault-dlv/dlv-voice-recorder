@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<!--
+============================================================
+ DIGI Legacy Vault — demo_full.html (GitHub Pages, dlv-voice-recorder)
+ Added 9/18/2026
+============================================================
+ WHY THIS FILE EXISTS: demo_recorder.html (voice-only) covered the
+ microphone-access problem (Apps Script's iframe sandbox has no
+ "microphone" in its Permissions-Policy, so no page it serves can ever
+ record audio — see that file's own header). After live-testing
+ demo_recorder.html, Alfa flagged that voice-only skipped the part of
+ the real trustee-nomination sequence he most wants visitors to
+ experience: reading the actual letter draft aloud, signing it, and
+ THEN recording — "as-is," per the team's earlier agreement that
+ visitors should experience the real back-end sequence rather than a
+ stripped-down substitute.
+
+ This file approximates that full sequence — letter draft (editable,
+ pre-filled with the real letter template's wording), digital
+ signature (same canvas/Re-sign/Final Version pattern), then voice
+ recording — as closely as a page with no real subscriber/trustee
+ data behind it can. It is a PORT of index.html's actual UI and flow
+ (same CSS, same signature canvas logic, same recording logic,
+ same letter template text from upload_test.html's
+ populateLetterTemplates()), not a new design — that is the point:
+ the visitor sees the real thing, not a mockup of it.
+
+ Explicitly NOT touching the real flow: index.html (the real
+ nomination page real subscribers/trustees depend on) is completely
+ unmodified. This page calls the existing sendTrusteeNominationDemo
+ backend action (isolated demo rate limits + its own Demo_Voice_Log
+ sheet — same one demo_recorder.html already uses), never
+ sendTrusteeNomination. Nothing here is saved to any account, Drive
+ folder, or the real Nominations sheet — only emailed to whatever
+ address the visitor types in, exactly like demo_recorder.html.
+
+ Backend note (9/18): sendTrusteeNominationDemo in Code.gs was
+ extended today to accept two new OPTIONAL payload fields —
+ letterBody and signatureDataUrl — so the confirmation email can
+ show the letter text and attach the signature image alongside the
+ recording. Fully backward compatible: demo_recorder.html (which
+ doesn't send these fields) still works unchanged.
+
+ GAS_WEBAPP_URL below currently points at the Test Deployment (/dev)
+ URL, matching demo_recorder.html — same caveat applies: swap to the
+ production /exec URL once a fresh deployment exists (see priority
+ list). Root cause of the "email never arrived" bug during live
+ testing was traced to exactly this: /dev requires the calling
+ browser to carry script.google.com login cookies, which a true
+ cross-origin fetch() from this GitHub Pages origin does not send —
+ confirmed via a live network-level test that returned HTTP 503.
+ /exec (once deployed) needs no such cookie, so it will not hit this.
+============================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Try Me First — Full Demo | DIGI Legacy Vault</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  background: #f5f0e8;
+  color: #1a1108;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 60px;
+}
+#demo-pill {
+  display: inline-block;
+  border: 1px solid #d4af7a;
+  border-radius: 20px;
+  padding: .4rem 1.1rem;
+  font-size: .74rem;
+  font-weight: bold;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #7a5c2e;
+  background: #fff8ee;
+  margin-bottom: 14px;
+}
+#rec-topbar {
+  background: #1a1108;
+  width: 100%;
+  max-width: 540px;
+  border-radius: 8px 8px 0 0;
+  padding: 9px 18px;
+  font-size: .72rem;
+  font-weight: bold;
+  letter-spacing: .09em;
+  text-align: center;
+  color: #d4af7a;
+}
+#recorder-card {
+  background: #ffffff;
+  border: 1px solid #d4af7a;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 28px 28px 24px;
+  width: 100%;
+  max-width: 540px;
+  text-align: center;
+  box-shadow: 0 4px 18px rgba(26,17,8,.10);
+}
+h1 { font-size: 1.25rem; color: #1a1108; margin-bottom: 4px; font-weight: bold; }
+#recorder-subtitle { font-size: .82rem; color: #1a1108; margin-bottom: 18px; font-weight: bold; line-height: 1.5; }
+#zoom-tip {
+  display: block;
+  background: #fff8ee;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: .76rem;
+  color: #1a1108;
+  font-weight: bold;
+  line-height: 1.6;
+  text-align: left;
+}
+.name-inputs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+.name-field { flex: 1; }
+.name-field label {
+  display: block;
+  font-size: .68rem;
+  font-weight: bold;
+  color: #7a6040;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 4px;
+}
+.name-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d4af7a;
+  border-radius: 6px;
+  font-family: Georgia, serif;
+  font-size: .82rem;
+  color: #1a1108;
+  background: #fffdf7;
+}
+.rec-divider { border: none; border-top: 1px solid #e8dfc8; margin: 16px 0; }
+.instruction-note {
+  font-size: .78rem;
+  font-weight: bold;
+  color: #1a1108;
+  text-align: center;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+#letter-textarea-recorder {
+  width: 100%;
+  min-height: 220px;
+  padding: 10px 12px;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  font-family: Georgia, serif;
+  font-size: .82rem;
+  color: #1a1108;
+  background: #fff;
+  resize: vertical;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+.sig-btn-row { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+.sig-btn {
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1px solid #d4af7a;
+  background: #fdf199;
+  color: #1a1108;
+  font-family: Georgia, serif;
+  font-size: .76rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.sig-btn:hover { background: #f7e873; }
+.sig-btn:disabled { opacity: .5; cursor: default; }
+.security-note { font-size: .68rem; color: #7a6040; font-weight: bold; margin-top: 8px; }
+#sig-status { font-size: .74rem; color: #1a1108; font-weight: bold; min-height: 16px; margin-top: 6px; }
+#signature-canvas {
+  width: 100%;
+  max-width: 400px;
+  height: 140px;
+  border: 1px solid #d4af7a;
+  border-radius: 8px;
+  background: #fffdf7;
+  touch-action: none;
+  cursor: crosshair;
+  display: block;
+  margin: 0 auto;
+}
+.voice-banner {
+  background: #c8e6c0;
+  color: #1a4d35;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: .82rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.rec-instructions { font-size: .74rem; font-weight: bold; color: #1a1108; line-height: 1.6; margin-top: 6px; margin-bottom: 10px; }
+#meter-wrap { width: 100%; height: 9px; background: #f5f0e8; border-radius: 5px; overflow: hidden; margin-bottom: 16px; border: 1px solid #d4af7a; }
+#meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #5a9a50, #b8860b, #c0392b); transition: width .08s; border-radius: 5px; }
+#timer-display { font-size: 2.6rem; font-weight: bold; color: #b8860b; letter-spacing: .1em; margin-bottom: 18px; font-variant-numeric: tabular-nums; }
+#record-btn {
+  width: 90px; height: 90px; border-radius: 50%;
+  border: 3px solid #b8860b; background: #b8860b; color: #ffffff;
+  font-size: .88rem; font-weight: bold; cursor: pointer;
+  font-family: Georgia, serif;
+  transition: background .2s, border-color .2s;
+  margin: 0 auto 10px;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: .04em;
+}
+#record-btn:hover { background: #a07808; border-color: #a07808; }
+#record-btn:disabled { opacity: .55; cursor: default; }
+#record-btn.recording { background: #c0392b; border-color: #c0392b; color: #fff; animation: pulse-red 1.2s ease-in-out infinite; }
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(192,57,43,.5); }
+  50% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
+  100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+}
+#record-btn-label { font-size: .72rem; color: #1a1108; margin-bottom: 14px; min-height: 18px; font-weight: bold; }
+#rec-status { font-size: .8rem; color: #1a1108; min-height: 20px; margin-bottom: 10px; font-weight: bold; line-height: 1.5; }
+#waitingMsg { font-size: .8rem; color: #6b5d47; margin-top: .5rem; line-height: 1.5; min-height: 0; }
+#mic-denied-box {
+  display: none;
+  background: #fff8ee; border: 1px solid #d4af7a; border-radius: 8px; padding: 14px 16px;
+  margin-bottom: 12px; text-align: left;
+}
+#mic-denied-box p { font-size: .78rem; color: #1a1108; margin-bottom: 8px; line-height: 1.6; font-weight: bold; }
+#mic-denied-box ol { font-size: .75rem; color: #1a1108; padding-left: 18px; margin-bottom: 10px; line-height: 1.8; font-weight: bold; }
+#try-again-btn {
+  width: 100%; padding: 9px; border-radius: 7px; border: none;
+  background: #b8860b; color: #ffffff; font-family: Georgia, serif;
+  font-size: .86rem; font-weight: bold; cursor: pointer;
+}
+#try-again-btn:hover { background: #a07808; }
+#playback-section { display: none; margin-top: 4px; }
+#playback-label {
+  display: inline-block; background: #f7d488; border: 1px solid #d4af7a; border-radius: 8px;
+  padding: .4rem 1rem; font-size: .88rem; font-weight: bold; color: #1a1108; margin-bottom: 12px;
+}
+#audio-player { width: 100%; margin-bottom: 14px; accent-color: #b8860b; }
+.rec-btn-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.rec-dark-btn {
+  flex: 1; padding: 10px; border-radius: 8px; border: none;
+  background: #1a1108; color: #ffffff; font-family: Georgia, serif;
+  font-size: .82rem; font-weight: bold; cursor: pointer; transition: opacity .2s;
+}
+.rec-dark-btn:hover { opacity: .85; }
+.rec-dark-btn:disabled { cursor: default; opacity: .5; }
+#rerecord-btn { background: #f5f0e8; border: 1px solid #d4af7a; color: #1a1108; }
+.email-field { text-align: left; margin-bottom: 12px; }
+.email-field label { display: block; font-size: .74rem; font-weight: bold; color: #1a1108; margin-bottom: 4px; }
+.email-field input {
+  width: 100%; padding: 10px 12px; border: 1px solid #d4af7a; border-radius: 8px;
+  font-family: Georgia, serif; font-size: .88rem; color: #1a1108; background: #fffdf7;
+}
+.send-invite-btn {
+  width: 100%; padding: 12px; border-radius: 8px; border: none;
+  background: #1a1108; color: #ffffff; font-family: Georgia, serif;
+  font-size: .88rem; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: opacity .2s;
+}
+.send-invite-btn:hover { opacity: .85; }
+.send-invite-btn:disabled { cursor: default; opacity: .6; }
+#sent-badge {
+  display: none; background: #fdf199; border: 1px solid #d4af7a; border-radius: 8px;
+  padding: .5rem 1rem; font-size: .85rem; font-weight: bold; color: #1a1108; text-align: center; margin-bottom: 10px;
+}
+#send-status { font-size: .78rem; color: #1a1108; min-height: 18px; margin-top: 4px; font-weight: bold; }
+.footer-note { margin-top: 20px; font-size: .68rem; color: #7a6040; font-weight: bold; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="demo-pill">DIGI Legacy Vault &middot; Try Me First Demo</div>
+<div id="rec-topbar">FULL SEQUENCE PREVIEW — LETTER &middot; SIGNATURE &middot; VOICE</div>
+<div id="recorder-card">
+
+  <div id="pre-recording-content">
+  <h1>Nominate a Trustee — See the Real Sequence</h1>
+  <p id="recorder-subtitle">This is the same letter-review, signature, and voice-recording sequence a real DIGI Legacy Vault subscriber goes through to nominate a trustee. Try it end to end, then have the result emailed to yourself.</p>
+  <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, signing, and recording.</div>
+
+  <div class="name-inputs">
+    <div class="name-field">
+      <label for="trustee-name-input">Trustee&rsquo;s name (optional)</label>
+      <input type="text" id="trustee-name-input" placeholder="e.g. Jordan" autocomplete="off">
+    </div>
+    <div class="name-field">
+      <label for="your-name-input">Your name (optional)</label>
+      <input type="text" id="your-name-input" placeholder="e.g. Alex" autocomplete="off">
+    </div>
+  </div>
+
+  <hr class="rec-divider">
+  <p class="instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
+  <textarea id="letter-textarea-recorder"></textarea>
+
+  <hr class="rec-divider">
+  <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
+  <canvas id="signature-canvas" width="400" height="140"></canvas>
+  <div class="sig-btn-row" id="sig-btn-row">
+    <button class="sig-btn" id="resign-btn" type="button" onclick="resignSignature()">Re-sign</button>
+    <button class="sig-btn" id="finalize-signature-btn" type="button" onclick="finalizeSignature()">Final Version</button>
+  </div>
+  <div id="sig-status"></div>
+  <p class="security-note">For security reason, digital signature is not saved.</p>
+
+  <hr class="rec-divider">
+  <div class="voice-banner">Voice Recording</div>
+  <div id="meter-wrap"><div id="meter-fill"></div></div>
+  <div id="timer-display">0:00</div>
+  <button id="record-btn" type="button" onclick="toggleRecording()">START</button>
+  <p id="record-btn-label">Press START to begin recording</p>
+  <p id="waitingMsg" style="display:none;"></p>
+  <p class="rec-instructions">Before starting put your computer volume at max level.<br>Re-record as many times as needed.<br>For security reason, voice recording is not saved.</p>
+  <div id="rec-status"></div>
+  <div id="mic-denied-box">
+    <p>&#9888; Microphone access was denied. To fix this:</p>
+    <ol>
+      <li>Click the lock icon in your browser address bar</li>
+      <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
+      <li>Check <strong>"Allow on every visit"</strong></li>
+      <li>Click <strong>Try Again</strong> below</li>
+    </ol>
+    <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
+    <button id="try-again-btn" type="button" onclick="retryMic()">&#8635; Try Again</button>
+  </div>
+  </div><!-- /#pre-recording-content -->
+
+  <div id="playback-section">
+    <hr class="rec-divider">
+    <div id="playback-label">Review your voice recording</div>
+    <audio id="audio-player" controls></audio>
+    <div class="rec-btn-row" id="rec-btn-row">
+      <button class="rec-dark-btn" id="rerecord-btn" type="button" onclick="reRecord()">Unlimited Re-recording</button>
+      <button class="rec-dark-btn" id="finalize-recording-btn" type="button" onclick="finalizeRecording()">FINAL Version</button>
+    </div>
+    <p class="security-note">For security reason, voice recording is not saved.</p>
+    <div id="recording-ready-banner" style="display:none;background:#8bdb5c;color:#142b0a;font-weight:bold;text-align:center;padding:14px 16px;border-radius:10px;font-size:1.02rem;line-height:1.4;margin-bottom:12px;">Recording Successful.<br>Ready to send.</div>
+
+    <hr class="rec-divider">
+    <div class="email-field">
+      <label for="recipient-email">Email me this letter, signature &amp; recording</label>
+      <input type="email" id="recipient-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <button class="send-invite-btn" id="send-btn" type="button" onclick="sendDemoNomination()">&#128231; Email Me This Demo</button>
+    <div id="sent-badge">SENT: <span id="sent-timestamp"></span></div>
+    <div id="send-status"></div>
+  </div>
+
+  <div class="footer-note">
+    This is a demo, separate from DIGI Legacy Vault's real trustee system.<br>
+    Your letter, signature, and recording are only emailed to the address you type above — none of it is saved to any account, Drive folder, or real trustee record.
+  </div>
+</div>
+
+<script>
+(function () {
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  // Test Deployment (/dev) for now -- see file header re: the 503
+  // cross-origin cookie issue. Swap to /exec once a fresh deployment
+  // exists (matches demo_recorder.html's own note).
+  var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
+
+  function getParam(name) {
+    var params = new URLSearchParams(window.location.search);
+    return (params.get(name) || '').trim();
+  }
+  var demoSessionId = getParam('sid') || ('demo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
+
+  // ============================================================
+  // Letter draft — same wording as the real letter template
+  // (populateLetterTemplates() in upload_test.html), adapted for a
+  // visitor with no real trustee/domain data yet.
+  // ============================================================
+  var todayStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  var deadlineStr = (function () {
+    var d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    d.setHours(12, 0, 0, 0);
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  })();
+
+  var trusteeNameInput = document.getElementById('trustee-name-input');
+  var yourNameInput = document.getElementById('your-name-input');
+  var letterArea = document.getElementById('letter-textarea-recorder');
+
+  function buildLetter() {
+    var trusteeName = trusteeNameInput.value.trim() || '[Your Trustee’s Name]';
+    var yourName = yourNameInput.value.trim() || '[Your Name]';
+    return todayStr + '\n\n' +
+      'Dear ' + trusteeName + ',\n\n' +
+      'May this message find you well. I am writing to formally nominate you as one of my Trustees for my newly established DIGI Legacy Vault — a secure digital storage system, where I have organized and filed important personal documents and memorabilia, so that they can be shared to my family and other people I care about – when I have already moved on to the afterlife.\n\n' +
+      'As my TRUSTEE, you will be granted access to my vault, even before I have moved on. Your access will be under certain conditions which I will elaborate on – after we have aligned as Grantor and Trustee.\n\n' +
+      'For this nomination, you are being granted access to (sample) all 4 DIGI Legacy Vaults — Legal, Finance, Medical, and Memorabilia. These DLVs contain various files of personal documents and memorabilia that will help guide you in what to share with my family members, and other people I care about.\n\n' +
+      'You were specifically chosen because I trust you completely.\n\n' +
+      'I would deeply appreciate if you accept this TRUSTEE nomination. You will truly help me put proper closure to my life journey.\n\n' +
+      'But, if you are busy or have other priorities right now, it is completely understandable for you to decline my invitation.\n\n' +
+      'By clicking one of the squares in the bottom part of my Gmail letter, you will be able to review, edit, and sign an auto-generated reply, before it is sent to me.\n\n' +
+      'With gratitude and respect,\n' + yourName + '\n\n' +
+      'Please choose and tap on one of the squares:\n' +
+      '☐ I accept your TRUSTEE nomination\n' +
+      '☐ Please give me until noon of ' + deadlineStr + ' (7 days) to make my decision.\n' +
+      '☐ With regrets, I decline your invitation.';
+  }
+  // Only auto-regenerate while the visitor hasn't started editing the
+  // letter by hand -- once they type in the textarea directly, their
+  // edits win (same "draft can be edited as needed" behavior as the
+  // real page).
+  var letterManuallyEdited = false;
+  letterArea.value = buildLetter();
+  letterArea.addEventListener('input', function () { letterManuallyEdited = true; });
+  function refreshLetterNames() {
+    if (letterManuallyEdited) return;
+    letterArea.value = buildLetter();
+  }
+  trusteeNameInput.addEventListener('input', refreshLetterNames);
+  yourNameInput.addEventListener('input', refreshLetterNames);
+
+  // ============================================================
+  // Signature canvas (ported from index.html)
+  // ============================================================
+  var sigCanvas = document.getElementById('signature-canvas');
+  var sigCtx = sigCanvas.getContext('2d');
+  sigCtx.strokeStyle = '#1a1108';
+  sigCtx.lineWidth = 2;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+  var isDrawingSignature = false;
+  var hasDrawnSignature = false;
+  var signatureLocked = false;
+
+  function getPos(e) {
+    var rect = sigCanvas.getBoundingClientRect();
+    var scaleX = sigCanvas.width / rect.width;
+    var scaleY = sigCanvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+  sigCanvas.addEventListener('pointerdown', function (e) {
+    if (signatureLocked) return;
+    isDrawingSignature = true;
+    hasDrawnSignature = true;
+    var p = getPos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(p.x, p.y);
+    sigCanvas.setPointerCapture(e.pointerId);
+  });
+  sigCanvas.addEventListener('pointermove', function (e) {
+    if (!isDrawingSignature || signatureLocked) return;
+    var p = getPos(e);
+    sigCtx.lineTo(p.x, p.y);
+    sigCtx.stroke();
+  });
+  sigCanvas.addEventListener('pointerup', function () { isDrawingSignature = false; });
+  sigCanvas.addEventListener('pointerleave', function () { isDrawingSignature = false; });
+
+  function clearSignature() {
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    hasDrawnSignature = false;
+  }
+  window.finalizeSignature = function () {
+    if (!hasDrawnSignature) { setSigStatus('Please sign above before marking as final.'); return; }
+    signatureLocked = true;
+    document.getElementById('finalize-signature-btn').disabled = true;
+    sigCanvas.style.display = 'none';
+    document.getElementById('sig-btn-row').style.display = 'none';
+    document.getElementById('sig-instruction-note').style.display = 'none';
+    document.getElementById('sig-status').innerHTML = 'Signature finalized. <a href="#" onclick="resignSignature();return false;">Edit signature</a>';
+  };
+  window.resignSignature = function () {
+    clearSignature();
+    signatureLocked = false;
+    document.getElementById('finalize-signature-btn').disabled = false;
+    sigCanvas.style.display = '';
+    document.getElementById('sig-btn-row').style.display = '';
+    document.getElementById('sig-instruction-note').style.display = '';
+    setSigStatus('');
+  };
+  function setSigStatus(msg) { document.getElementById('sig-status').textContent = msg; }
+
+  // ============================================================
+  // Voice recording (ported from index.html, plus demo_recorder.html's
+  // waiting-message diagnostic while the mic permission prompt is
+  // pending)
+  // ============================================================
+  var mediaRecorder = null, audioChunks = [], audioBlob = null, isRecording = false;
+  var timerInterval = null, timerSeconds = 0;
+  var analyserNode = null, meterInterval = null, audioStream = null, audioCtx = null;
+  var recordingLocked = false;
+
+  var recordBtn = document.getElementById('record-btn');
+  var waitingMsg = document.getElementById('waitingMsg');
+
+  function updateTimerDisplay() {
+    var m = Math.floor(timerSeconds / 60);
+    var s = timerSeconds % 60;
+    document.getElementById('timer-display').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
+  function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
+  function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
+  function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
+
+  window.toggleRecording = function () {
+    if (!isRecording) { startRecording(); } else { stopRecording(); }
+  };
+
+  function startRecording() {
+    hideMicDenied();
+    if (audioStream) { beginRecordingWithStream(audioStream); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showMicDenied();
+      return;
+    }
+    recordBtn.disabled = true;
+    waitingMsg.style.display = 'block';
+    waitingMsg.textContent = 'Requesting microphone access… look for a permission prompt near your browser’s address bar.';
+    setRecStatus('Requesting microphone access…');
+    var settled = false;
+    var timeoutId = setTimeout(function () {
+      if (settled) return;
+      waitingMsg.textContent = 'Still waiting. If you didn’t see a permission prompt: check this site’s microphone permission (the icon just left of the address bar), and check that your computer’s system privacy settings allow this browser to use the microphone.';
+    }, 8000);
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (stream) {
+        settled = true;
+        clearTimeout(timeoutId);
+        recordBtn.disabled = false;
+        waitingMsg.style.display = 'none';
+        audioStream = stream;
+        beginRecordingWithStream(stream);
+      })
+      .catch(function () {
+        settled = true;
+        clearTimeout(timeoutId);
+        recordBtn.disabled = false;
+        waitingMsg.style.display = 'none';
+        setRecStatus('');
+        showMicDenied();
+      });
+  }
+
+  function beginRecordingWithStream(stream) {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var source = audioCtx.createMediaStreamSource(stream);
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 256;
+      source.connect(analyserNode);
+    }
+    startMeter();
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.addEventListener('dataavailable', function (e) { if (e.data.size > 0) audioChunks.push(e.data); });
+    mediaRecorder.addEventListener('stop', function () {
+      audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      var url = URL.createObjectURL(audioBlob);
+      document.getElementById('audio-player').src = url;
+      document.getElementById('playback-section').style.display = 'block';
+      document.getElementById('pre-recording-content').style.display = 'none';
+      setRecStatus('Recording complete. Review and send below.');
+    });
+    mediaRecorder.start();
+    isRecording = true;
+    recordBtn.textContent = 'STOP';
+    recordBtn.classList.add('recording');
+    document.getElementById('record-btn-label').textContent = 'Recording in progress…';
+    setRecStatus('Recording started — you may speak now.');
+    timerSeconds = 0;
+    updateTimerDisplay();
+    timerInterval = setInterval(function () { timerSeconds++; updateTimerDisplay(); }, 1000);
+  }
+  window.retryMic = function () { hideMicDenied(); startRecording(); };
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    clearInterval(timerInterval);
+    clearInterval(meterInterval);
+    document.getElementById('meter-fill').style.width = '0%';
+    isRecording = false;
+    recordBtn.textContent = 'START';
+    recordBtn.classList.remove('recording');
+    document.getElementById('record-btn-label').textContent = 'Press START to record again';
+  }
+  function releaseMicStream() {
+    if (audioStream) { audioStream.getTracks().forEach(function (t) { t.stop(); }); audioStream = null; }
+    audioCtx = null;
+  }
+  function startMeter() {
+    var dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+    meterInterval = setInterval(function () {
+      analyserNode.getByteFrequencyData(dataArray);
+      var sum = 0;
+      for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
+      var pct = Math.min(100, (sum / dataArray.length / 128) * 100);
+      document.getElementById('meter-fill').style.width = pct + '%';
+    }, 80);
+  }
+
+  window.finalizeRecording = function () {
+    if (!audioBlob) { setSendStatus('Please record your voice message first.'); return; }
+    recordingLocked = true;
+    var finBtn = document.getElementById('finalize-recording-btn');
+    if (finBtn) finBtn.disabled = true;
+    var rerecBtn = document.getElementById('rerecord-btn');
+    if (rerecBtn) rerecBtn.disabled = true;
+    document.getElementById('recording-ready-banner').style.display = 'block';
+  };
+
+  window.reRecord = function () {
+    audioBlob = null; audioChunks = [];
+    timerSeconds = 0; updateTimerDisplay();
+    document.getElementById('audio-player').src = '';
+    document.getElementById('playback-section').style.display = 'none';
+    document.getElementById('pre-recording-content').style.display = '';
+    recordingLocked = false;
+    var finBtn = document.getElementById('finalize-recording-btn');
+    if (finBtn) finBtn.disabled = false;
+    var rerecBtn = document.getElementById('rerecord-btn');
+    if (rerecBtn) rerecBtn.disabled = false;
+    document.getElementById('recording-ready-banner').style.display = 'none';
+    document.getElementById('sent-badge').style.display = 'none';
+    var sb = document.getElementById('send-btn');
+    sb.disabled = false;
+    sb.style.display = '';
+    setRecStatus('Ready to record again. Press START.');
+    setSendStatus('');
+    document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
+  };
+
+  // ============================================================
+  // Send — calls the existing, isolated sendTrusteeNominationDemo
+  // backend action (same rate limits + Demo_Voice_Log as
+  // demo_recorder.html). NOT sendTrusteeNomination -- never touches
+  // the real Nominations sheet or Drive.
+  // ============================================================
+  window.sendDemoNomination = function () {
+    if (!audioBlob) { setSendStatus('No recording to send. Please record your voice message first.'); return; }
+    var letterText = letterArea.value.trim();
+    if (!letterText) { setSendStatus('Please review your letter above — it cannot be empty.'); return; }
+    if (!hasDrawnSignature) { setSendStatus('Please sign your letter above before sending.'); return; }
+    if (!signatureLocked) { setSendStatus('Please click "Final Version" under the signature box before sending.'); return; }
+    if (!recordingLocked) { setSendStatus('Please click "FINAL Version" under your recording before sending.'); return; }
+    var emailInput = document.getElementById('recipient-email');
+    var recipientEmail = emailInput.value.trim();
+    var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!recipientEmail || !emailPattern.test(recipientEmail)) {
+      setSendStatus('Please enter a valid email address.');
+      return;
+    }
+
+    var btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    setSendStatus('Sending…');
+
+    var signatureDataUrl = sigCanvas.toDataURL('image/png');
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var base64 = e.target.result.split(',')[1];
+      var fileName = 'DemoVoiceMessage_' + Date.now() + '.webm';
+      var payload = {
+        action: 'sendTrusteeNominationDemo',
+        recipientEmail: recipientEmail,
+        visitorName: yourNameInput.value.trim(),
+        fileName: fileName,
+        mimeType: 'audio/webm',
+        base64Data: base64,
+        durationSeconds: timerSeconds,
+        demoSessionId: demoSessionId,
+        letterBody: letterText,
+        signatureDataUrl: signatureDataUrl
+      };
+      fetch(GAS_WEBAPP_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      })
+      .then(function () {
+        setSendStatus('');
+        document.getElementById('sent-timestamp').textContent = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        document.getElementById('sent-badge').style.display = 'block';
+        btn.style.display = 'none';
+        setSendStatus('Sent! Check your inbox in a moment — and if you don’t see it, check spam.');
+        releaseMicStream();
+      })
+      .catch(function (err) {
+        setSendStatus('Error sending request. (' + err.message + ')');
+        btn.disabled = false;
+      });
+    };
+    reader.readAsDataURL(audioBlob);
+  };
+})();
+</script>
+</body>
+</html>
