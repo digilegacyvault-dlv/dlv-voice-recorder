@@ -316,7 +316,7 @@ h1 { font-size: 1.25rem; color: #1a1108; margin-bottom: 4px; font-weight: bold; 
     <button class="sig-btn" id="finalize-signature-btn" type="button" onclick="finalizeSignature()">Final Version</button>
   </div>
   <div id="sig-status"></div>
-  <p class="security-note">For security reason, digital signature is not saved.</p>
+  <p class="security-note" id="sig-security-note">For security reason, digital signature is not saved.</p>
 
   <hr class="rec-divider">
   <div class="voice-banner">Voice Recording</div>
@@ -479,6 +479,7 @@ h1 { font-size: 1.25rem; color: #1a1108; margin-bottom: 4px; font-weight: bold; 
     sigCanvas.style.display = 'none';
     document.getElementById('sig-btn-row').style.display = 'none';
     document.getElementById('sig-instruction-note').style.display = 'none';
+    document.getElementById('sig-security-note').style.display = 'none';
     document.getElementById('sig-status').innerHTML = 'Signature finalized. <a href="#" onclick="resignSignature();return false;">Edit signature</a>';
   };
   window.resignSignature = function () {
@@ -488,6 +489,7 @@ h1 { font-size: 1.25rem; color: #1a1108; margin-bottom: 4px; font-weight: bold; 
     sigCanvas.style.display = '';
     document.getElementById('sig-btn-row').style.display = '';
     document.getElementById('sig-instruction-note').style.display = '';
+    document.getElementById('sig-security-note').style.display = '';
     setSigStatus('');
   };
   function setSigStatus(msg) { document.getElementById('sig-status').textContent = msg; }
