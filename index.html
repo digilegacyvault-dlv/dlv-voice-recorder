@@ -1253,6 +1253,39 @@ function setRecStatus(msg) { document.getElementById('rec-status').textContent =
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
 function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
+// NEW — make the "choose one of the squares" checkboxes in the letter
+// tappable, with no side effects beyond marking the chosen line with a
+// checked box in the free-text letter itself (which is already sent
+// as-is). Behaves like a set of radio buttons: tapping a line that
+// starts with \u2610 checks it and un-checks any other checkbox line
+// already marked; tapping an already-checked line leaves it checked.
+// Any line in the letter starting with \u2610 or \u2611 qualifies, so
+// this keeps working even if the subscriber edits the letter text.
+function wireLetterCheckboxToggle() {
+  var ta = document.getElementById('letter-textarea-recorder');
+  if (!ta) return;
+  ta.addEventListener('click', function() {
+    var pos = ta.selectionStart;
+    var value = ta.value;
+    var lineStart = value.lastIndexOf('\n', pos - 1) + 1;
+    var lineEnd = value.indexOf('\n', pos);
+    if (lineEnd === -1) lineEnd = value.length;
+    var boxIdx = -1;
+    for (var i = lineStart; i < lineEnd; i++) {
+      var ch = value.charAt(i);
+      if (ch === '\u2610' || ch === '\u2611') { boxIdx = i; break; }
+    }
+    if (boxIdx === -1) return;
+    var out = value.split('');
+    for (var j = 0; j < out.length; j++) {
+      if (out[j] === '\u2611' && j !== boxIdx) out[j] = '\u2610';
+    }
+    out[boxIdx] = '\u2611';
+    ta.value = out.join('');
+    ta.setSelectionRange(pos, pos);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var label = document.getElementById('trustee-number-label');
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
@@ -1272,6 +1305,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   var letterArea = document.getElementById('letter-textarea-recorder');
   if (letterArea) letterArea.value = letterBodyFromUrl;
+  wireLetterCheckboxToggle();
   initSignatureCanvas();
 });
 </script>
