@@ -554,7 +554,7 @@ h1 {
   border: 1px solid #d4af7a;
   border-radius: 8px;
   font-family: Georgia, serif;
-  font-size: .82rem;
+  font-size: 1rem;
   color: #1a1108;
   background: #fff;
   resize: vertical;
@@ -840,7 +840,7 @@ var recordingLocked = false;
 var nominationSent = false;
 function returnToSummary() {
   var sep = STORAGE_SUMMARY_URL.indexOf('?') > -1 ? '&' : '?';
-  var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1';
+  var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1&betaKey=DLV2026Beta-Xq9Rz3Km';
   if (nominationSent && trusteeNumber) {
     url += '&trusteeJustSent=' + encodeURIComponent(trusteeNumber);
   }
@@ -1304,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', function() {
     domainsBlock.style.display = 'none';
   }
   var letterArea = document.getElementById('letter-textarea-recorder');
-  if (letterArea) letterArea.value = letterBodyFromUrl;
+  if (letterArea) letterArea.value = letterBodyFromUrl.replace('By clicking one of the squares in the bottom part of my Gmail letter, you will be able to review, edit, and sign an auto-generated reply, before it is sent to me.\n\n', '');
   wireLetterCheckboxToggle();
   initSignatureCanvas();
 });
