@@ -561,6 +561,31 @@ h1 {
   line-height: 1.6;
   margin-bottom: 4px;
 }
+.letter-response-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .5rem 0 .7rem;
+}
+.letter-response-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem .85rem;
+  border: 1.5px solid #d4af7a;
+  border-radius: 20px;
+  background: #fff;
+  font-size: .88rem;
+  font-weight: bold;
+  color: #1a1108;
+  cursor: pointer;
+}
+.letter-response-chip input {
+  width: 18px;
+  height: 18px;
+  accent-color: #7a5c2e;
+  cursor: pointer;
+}
 #signature-canvas {
   width: 100%;
   max-width: 400px;
@@ -695,6 +720,11 @@ h1 {
   <!-- tweak #4 — instruction text replaces "REVIEW YOUR LETTER" label -->
   <p class="instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
   <textarea id="letter-textarea-recorder"></textarea>
+  <div class="letter-response-row" id="tRecRespRow">
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="0"> I Accept</label>
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="1"> Need More Time</label>
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="2"> I Decline</label>
+  </div>
   <hr class="rec-divider">
   <!-- tweak #5 — instruction text replaces "SIGN YOUR LETTER" label -->
   <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
@@ -1287,8 +1317,46 @@ function wireLetterCheckboxToggle() {
     out[boxIdx] = '\u2611';
     ta.value = out.join('');
     ta.setSelectionRange(pos, pos);
+    syncChipsFromLetter();
   });
 }
+function findLetterCheckboxLines() {
+  var ta = document.getElementById('letter-textarea-recorder');
+  var lines = ta ? ta.value.split('\n') : [];
+  var result = [];
+  for (var i = 0; i < lines.length; i++) {
+    for (var j = 0; j < lines[i].length; j++) {
+      var ch = lines[i].charAt(j);
+      if (ch === '\u2610' || ch === '\u2611') { result.push({ line: i, col: j, checked: ch === '\u2611' }); break; }
+    }
+  }
+  return result;
+}
+function setLetterCheckboxByOrdinal(ordinal) {
+  var ta = document.getElementById('letter-textarea-recorder');
+  if (!ta) return;
+  var lines = ta.value.split('\n');
+  var boxes = findLetterCheckboxLines();
+  boxes.forEach(function(b, idx) {
+    var chars = lines[b.line].split('');
+    chars[b.col] = (idx === ordinal) ? '\u2611' : '\u2610';
+    lines[b.line] = chars.join('');
+  });
+  ta.value = lines.join('\n');
+}
+function syncChipsFromLetter() {
+  var boxes = findLetterCheckboxLines();
+  var checkedOrdinal = -1;
+  boxes.forEach(function(b, idx) { if (b.checked) checkedOrdinal = idx; });
+  var radios = document.querySelectorAll('.tRecResp');
+  radios.forEach(function(r) { r.checked = (String(checkedOrdinal) === r.value); });
+}
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('tRecResp')) {
+    setLetterCheckboxByOrdinal(parseInt(e.target.value, 10));
+    syncChipsFromLetter();
+  }
+});
 
 document.addEventListener('DOMContentLoaded', function() {
   var label = document.getElementById('trustee-number-label');
@@ -1310,9 +1378,9 @@ document.addEventListener('DOMContentLoaded', function() {
   var letterArea = document.getElementById('letter-textarea-recorder');
   if (letterArea) letterArea.value = letterBodyFromUrl.replace('By clicking one of the squares in the bottom part of my Gmail letter, you will be able to review, edit, and sign an auto-generated reply, before it is sent to me.\n\n', '');
   wireLetterCheckboxToggle();
+  syncChipsFromLetter();
   initSignatureCanvas();
 });
 </script>
 </body>
 </html>
-x
