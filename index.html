@@ -800,6 +800,7 @@ var trusteeName = getTrusteeNameFromUrl();
 var trusteeEmail = getTrusteeEmailFromUrl();
 var letterBodyFromUrl = getLetterBodyFromUrl();
 var domainsGrantedFromUrl = getDomainsGrantedFromUrl();
+var demoModeFromUrl = ((new URLSearchParams(window.location.search)).get('demo') === '1');
 var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
@@ -851,6 +852,9 @@ function returnToSummary() {
   // Email field, which is usually empty at this point in the flow.
   if (subscriberEmail) {
     url += '&subscriberEmail=' + encodeURIComponent(subscriberEmail);
+  }
+  if (demoModeFromUrl) {
+    url += '&demo=1';
   }
   window.location.href = url;
 }
