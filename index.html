@@ -832,6 +832,7 @@ var trusteeEmail = getTrusteeEmailFromUrl();
 var letterBodyFromUrl = getLetterBodyFromUrl();
 var domainsGrantedFromUrl = getDomainsGrantedFromUrl();
 var demoModeFromUrl = ((new URLSearchParams(window.location.search)).get('demo') === '1');
+var tokenFromUrl = (new URLSearchParams(window.location.search)).get('token') || '';
 var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
@@ -886,6 +887,9 @@ function returnToSummary() {
   }
   if (demoModeFromUrl) {
     url += '&demo=1';
+  }
+  if (tokenFromUrl) {
+    url += '&token=' + encodeURIComponent(tokenFromUrl);
   }
   window.location.href = url;
 }
