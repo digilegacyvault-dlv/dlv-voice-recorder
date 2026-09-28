@@ -718,9 +718,9 @@ h1 {
   </div>
   <hr class="rec-divider">
   <!-- tweak #4 — instruction text replaces "REVIEW YOUR LETTER" label -->
-  <p class="instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
+  <p class="instruction-note" id="letter-instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
   <textarea id="letter-textarea-recorder"></textarea>
-  <p class="instruction-note">Tap your response below - it fills in the checkbox above.</p>
+  <p class="instruction-note" id="letter-response-caption">Tap your response below - it fills in your response above.</p>
   <div class="letter-response-row" id="tRecRespRow">
     <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="0"> I Accept</label>
     <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="1"> Need More Time</label>
@@ -1054,6 +1054,13 @@ function finalizeSignature() {
   // re-sign without reloading the page.
   document.getElementById('signature-canvas').style.display = 'none';
   document.getElementById('sig-btn-row').style.display = 'none';
+  document.getElementById('letter-textarea-recorder').style.display = 'none';
+  var letterNote = document.getElementById('letter-instruction-note');
+  if (letterNote) letterNote.style.display = 'none';
+  var respCaption = document.getElementById('letter-response-caption');
+  if (respCaption) respCaption.style.display = 'none';
+  var respRow = document.getElementById('tRecRespRow');
+  if (respRow) respRow.style.display = 'none';
   var sigNote = document.getElementById('sig-instruction-note');
   if (sigNote) sigNote.style.display = 'none';
   var sigStatusEl = document.getElementById('sig-status');
@@ -1067,6 +1074,13 @@ function resignSignature() {
   // NEW in IT76 — restore the box + buttons when re-signing
   document.getElementById('signature-canvas').style.display = '';
   document.getElementById('sig-btn-row').style.display = '';
+  document.getElementById('letter-textarea-recorder').style.display = '';
+  var letterNote = document.getElementById('letter-instruction-note');
+  if (letterNote) letterNote.style.display = '';
+  var respCaption = document.getElementById('letter-response-caption');
+  if (respCaption) respCaption.style.display = '';
+  var respRow = document.getElementById('tRecRespRow');
+  if (respRow) respRow.style.display = '';
   var sigNote = document.getElementById('sig-instruction-note');
   if (sigNote) sigNote.style.display = '';
   setSigStatus('');
@@ -1300,65 +1314,47 @@ function hideMicDenied() { document.getElementById('mic-denied-box').style.displ
 // already marked; tapping an already-checked line leaves it checked.
 // Any line in the letter starting with \u2610 or \u2611 qualifies, so
 // this keeps working even if the subscriber edits the letter text.
-function wireLetterCheckboxToggle() {
+function dlvExtractDeadlineStr_(letterText) {
+  var m = letterText.match(/\(by ([^)]+)\):/);
+  return m ? m[1] : '';
+}
+function dlvResponseTexts_() {
+  var ta = document.getElementById('letter-textarea-recorder');
+  var d = ta ? dlvExtractDeadlineStr_(ta.value) : '';
+  return ['I accept your TRUSTEE nomination.', 'Please give me until ' + d + ' (7 days) to decide.', 'With regrets, I decline your invitation.'];
+}
+function setLetterResponseByOrdinal(ordinal) {
   var ta = document.getElementById('letter-textarea-recorder');
   if (!ta) return;
-  ta.addEventListener('click', function() {
-    var pos = ta.selectionStart;
-    var value = ta.value;
-    var lineStart = value.lastIndexOf('\n', pos - 1) + 1;
-    var lineEnd = value.indexOf('\n', pos);
-    if (lineEnd === -1) lineEnd = value.length;
-    var boxIdx = -1;
-    for (var i = lineStart; i < lineEnd; i++) {
-      var ch = value.charAt(i);
-      if (ch === '\u2610' || ch === '\u2611') { boxIdx = i; break; }
-    }
-    if (boxIdx === -1) return;
-    var out = value.split('');
-    for (var j = 0; j < out.length; j++) {
-      if (out[j] === '\u2611' && j !== boxIdx) out[j] = '\u2610';
-    }
-    out[boxIdx] = '\u2611';
-    ta.value = out.join('');
-    ta.setSelectionRange(pos, pos);
-    syncChipsFromLetter();
-  });
-}
-function findLetterCheckboxLines() {
-  var ta = document.getElementById('letter-textarea-recorder');
-  var lines = ta ? ta.value.split('\n') : [];
-  var result = [];
-  for (var i = 0; i < lines.length; i++) {
-    for (var j = 0; j < lines[i].length; j++) {
-      var ch = lines[i].charAt(j);
-      if (ch === '\u2610' || ch === '\u2611') { result.push({ line: i, col: j, checked: ch === '\u2611' }); break; }
-    }
-  }
-  return result;
-}
-function setLetterCheckboxByOrdinal(ordinal) {
-  var ta = document.getElementById('letter-textarea-recorder');
-  if (!ta) return;
-  var lines = ta.value.split('\n');
-  var boxes = findLetterCheckboxLines();
-  boxes.forEach(function(b, idx) {
-    var chars = lines[b.line].split('');
-    chars[b.col] = (idx === ordinal) ? '\u2611' : '\u2610';
-    lines[b.line] = chars.join('');
-  });
-  ta.value = lines.join('\n');
+  var texts = dlvResponseTexts_();
+  var anchor = 'My response: ';
+  var idx = ta.value.indexOf(anchor);
+  if (idx === -1) return;
+  var afterAnchor = idx + anchor.length;
+  var endIdx = ta.value.indexOf('\n', afterAnchor);
+  if (endIdx === -1) endIdx = ta.value.length;
+  ta.value = ta.value.substring(0, afterAnchor) + texts[ordinal] + ta.value.substring(endIdx);
 }
 function syncChipsFromLetter() {
-  var boxes = findLetterCheckboxLines();
-  var checkedOrdinal = -1;
-  boxes.forEach(function(b, idx) { if (b.checked) checkedOrdinal = idx; });
+  var ta = document.getElementById('letter-textarea-recorder');
+  if (!ta) return;
+  var texts = dlvResponseTexts_();
+  var anchor = 'My response: ';
+  var idx = ta.value.indexOf(anchor);
+  var ordinal = -1;
+  if (idx !== -1) {
+    var afterAnchor = idx + anchor.length;
+    var endIdx = ta.value.indexOf('\n', afterAnchor);
+    if (endIdx === -1) endIdx = ta.value.length;
+    var current = ta.value.substring(afterAnchor, endIdx);
+    ordinal = texts.indexOf(current);
+  }
   var radios = document.querySelectorAll('.tRecResp');
-  radios.forEach(function(r) { r.checked = (String(checkedOrdinal) === r.value); });
+  radios.forEach(function(r) { r.checked = (String(ordinal) === r.value); });
 }
 document.addEventListener('change', function(e) {
   if (e.target && e.target.classList && e.target.classList.contains('tRecResp')) {
-    setLetterCheckboxByOrdinal(parseInt(e.target.value, 10));
+    setLetterResponseByOrdinal(parseInt(e.target.value, 10));
     syncChipsFromLetter();
   }
 });
@@ -1381,8 +1377,7 @@ document.addEventListener('DOMContentLoaded', function() {
     domainsBlock.style.display = 'none';
   }
   var letterArea = document.getElementById('letter-textarea-recorder');
-  if (letterArea) letterArea.value = letterBodyFromUrl.replace('By clicking one of the squares in the bottom part of my Gmail letter, you will be able to review, edit, and sign an auto-generated reply, before it is sent to me.\n\n', '');
-  wireLetterCheckboxToggle();
+  if (letterArea) letterArea.value = letterBodyFromUrl.replace('By tapping a response button below my Gmail letter, you will be able to review, edit, and sign an auto-generated reply, before it is sent to me.\n\n', '');
   syncChipsFromLetter();
   initSignatureCanvas();
 });
