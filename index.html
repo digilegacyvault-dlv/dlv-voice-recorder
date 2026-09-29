@@ -2,7 +2,19 @@
 <!--
 ============================================================
  DIGI Legacy Vault — voice_recorder (GitHub Pages version)
- CURRENT RELEASE: IT82 | August 6, 2026
+ CURRENT RELEASE: IT115 | September 28, 2026
+============================================================
+ IT115 | September 28, 2026 — Letter -> Signature -> Recording FINAL locks.
+   1) Letter gets its own FINAL step (in-page confirm). Signature pad and
+      recorder stay locked until the step before is FINAL.
+   2) Each FINAL shows a lock note: FINAL draft of letter / FINAL signature /
+      FINAL recording of message. No edit/re-sign/re-record after FINAL.
+   3) Read-only 'FINAL DRAFT ... ready for recording' script shown above the
+      recorder once the signature is FINAL (the letter no longer disappears).
+   4) Trustee choices are display-only, greyed, inside the letter box
+      ('Your trustee will tap one of these:'); old 'My response' auto-fill unused.
+   5) 'Start over for this trustee' link (until sent) = clean reload.
+   6) Visible version tag in footer: digilegacyvault.com · IT115.
 ============================================================
  IT82 | August 6, 2026 — the Photo tab's email prefill (added IT80)
  only copied FROM the main Storage Summary page's "Subscriber Email
@@ -694,6 +706,25 @@ h1 {
   font-weight: bold;
 }
 #rec-footer { margin-top: 20px; font-size: .66rem; color: #7a6040; font-weight: bold; }
+/* IT115 */
+.dlv-letter-box { border: 1px solid #c8b99a; border-radius: 8px; background: #fff; padding-bottom: 8px; margin-bottom: 8px; }
+.dlv-letter-box textarea { border: none !important; border-bottom: 1px dashed #c8b99a !important; border-radius: 8px 8px 0 0 !important; margin-bottom: 0 !important; }
+.dlv-letter-box textarea[readonly] { background: #f7f3ea !important; color: #3a2e1a !important; }
+.dlv-choices-disabled { opacity: .55; pointer-events: none; }
+.dlv-final-note { font-size: .8rem; font-weight: bold; color: #2d5a27; background: #e8f3e6; border: 1px solid #b7d4b1; border-radius: 8px; padding: 8px 10px; margin: 8px 0; text-align: center; }
+.dlv-step-locked { opacity: .45; }
+#letter-script-view { display: none; text-align: left; background: #fffdf6; border: 2px solid #b8860b; border-radius: 10px; padding: 12px 14px; margin: 10px 0 14px; }
+#letter-script-view .script-head { font-size: .78rem; font-weight: bold; color: #7a5c2e; text-align: center; margin-bottom: 8px; letter-spacing: .03em; }
+#letter-script-text { white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6; color: #1a1108; max-height: 380px; overflow-y: auto; }
+#record-btn:disabled { opacity: .45; cursor: default; }
+#dlv-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9999; align-items: center; justify-content: center; }
+#dlv-confirm-box { background: #fff; border-radius: 12px; max-width: 360px; width: 88%; padding: 20px; text-align: center; font-family: Georgia, serif; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+#dlv-confirm-msg { font-size: .95rem; font-weight: bold; color: #1a1108; margin-bottom: 16px; }
+#dlv-confirm-box button { font-family: Georgia, serif; font-weight: bold; border-radius: 30px; padding: 9px 18px; margin: 0 6px; cursor: pointer; font-size: .9rem; }
+#dlv-confirm-yes { background: #2d5a27; color: #fff; border: none; }
+#dlv-confirm-no { background: #fff; color: #1a1108; border: 1px solid #c8b99a; }
+#start-over-wrap { margin-top: 14px; font-size: .78rem; }
+#start-over-wrap a { color: #7a5c2e; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -718,33 +749,46 @@ h1 {
   </div>
   <hr class="rec-divider">
   <!-- tweak #4 — instruction text replaces "REVIEW YOUR LETTER" label -->
-  <p class="instruction-note" id="letter-instruction-note">Draft of letter below can be edited as needed.<br>Final version shall be used for the voice recording.</p>
+  <p class="instruction-note" id="letter-instruction-note">Edit your letter as many times as needed.<br>Tap FINAL when done &mdash; the final version is your recording script.</p>
+  <div class="dlv-letter-box">
   <textarea id="letter-textarea-recorder"></textarea>
-  <p class="instruction-note" id="letter-response-caption">Tap your response below - it fills in your response above.</p>
-  <div class="letter-response-row" id="tRecRespRow">
-    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="0"> I Accept</label>
-    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="1"> Need More Time</label>
-    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="2"> I Decline</label>
+  <p class="instruction-note" id="letter-response-caption">Your trustee will tap one of these:</p>
+  <div class="letter-response-row dlv-choices-disabled" id="tRecRespRow" aria-disabled="true">
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="0" disabled> I Accept</label>
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="1" disabled> Need More Time</label>
+    <label class="letter-response-chip"><input type="radio" name="tRecResp" class="tRecResp" value="2" disabled> I Decline</label>
   </div>
+  </div>
+  <div class="sig-btn-row" id="letter-btn-row">
+    <button class="sig-btn" id="finalize-letter-btn" onclick="finalizeLetter()">FINAL Letter</button>
+  </div>
+  <div id="letter-status"></div>
   <hr class="rec-divider">
   <!-- tweak #5 — instruction text replaces "SIGN YOUR LETTER" label -->
-  <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
+  <div id="sig-step" class="dlv-step-locked">
+  <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below. Sign and re-sign as many times as needed.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
   <canvas id="signature-canvas" width="400" height="140"></canvas>
   <!-- tweak #6 — Re-sign / Final Version buttons replace Clear Signature -->
   <div class="sig-btn-row" id="sig-btn-row">
     <button class="sig-btn" id="resign-btn" onclick="resignSignature()">Re-sign</button>
-    <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">Final Version</button>
+    <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">FINAL Signature</button>
   </div>
   <div id="sig-status"></div>
+  </div><!-- /#sig-step -->
   <!-- tweak #7 -->
   <p class="security-note">For security reason, digital signature is not saved.</p>
   <hr class="rec-divider">
   <!-- tweak #8 — green Voice Recording banner replaces the old label -->
   <div class="voice-banner">Voice Recording</div>
+  <!-- IT115: read-only recording script, shown once the signature is FINAL -->
+  <div id="letter-script-view">
+    <div class="script-head">FINAL DRAFT of message to Trustee Nominee &mdash; ready for recording.</div>
+    <div id="letter-script-text"></div>
+  </div>
   <div id="meter-wrap"><div id="meter-fill"></div></div>
   <div id="timer-display">0:00</div>
-  <button id="record-btn" onclick="toggleRecording()">START</button>
-  <p id="record-btn-label">Press START to begin recording</p>
+  <button id="record-btn" onclick="toggleRecording()" disabled>START</button>
+  <p id="record-btn-label">Tap FINAL on your letter and signature first</p>
   <!-- tweak #9 -->
   <p class="rec-instructions">Before starting put your computer volume at max level.<br>Re-record as many times as needed.<br>For security reason, voice recording is not saved.</p>
   <div id="rec-status"></div>
@@ -768,10 +812,11 @@ h1 {
     <!-- item 11b — Unlimited Re-recording / FINAL Version row -->
     <div class="rec-btn-row" id="rec-btn-row">
       <button class="rec-dark-btn" id="rerecord-btn" onclick="reRecord()">Unlimited Re-recording</button>
-      <button class="rec-dark-btn" id="finalize-recording-btn" onclick="finalizeRecording()">FINAL Version</button>
+      <button class="rec-dark-btn" id="finalize-recording-btn" onclick="finalizeRecording()">FINAL Recording</button>
     </div>
     <p class="security-note">For security reason, voice recording is not saved.</p>
     <!-- NEW in IT74 — shown once FINAL Version is clicked -->
+    <div id="rec-final-note" class="dlv-final-note" style="display:none;">FINAL recording of message &mdash; no more re-recording.</div>
     <div id="recording-ready-banner">Recording Successful.<br>Ready to SEND.</div>
     <!-- item 11c/11d — send button, gated on recordingLocked, dynamic trustee number -->
     <button class="send-invite-btn" id="send-btn" onclick="sendNomination()">&#128231; Send recorded invitation to Trustee Nominee #<span id="send-btn-trustee-num">&#8212;</span></button>
@@ -779,15 +824,23 @@ h1 {
     <div id="sent-badge">RECORDED INVITATION SENT: <span id="sent-timestamp"></span></div>
     <div id="send-status"></div>
   </div>
-  <div id="rec-footer">digilegacyvault.com</div>
+  <p id="start-over-wrap"><a href="#" onclick="dlvStartOver();return false;">Start over for this trustee</a></p>
+  <div id="rec-footer">digilegacyvault.com &middot; IT115</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
 <button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
+<!-- IT115: in-page confirmation (no browser alert/confirm dialogs) -->
+<div id="dlv-confirm-overlay"><div id="dlv-confirm-box"><div id="dlv-confirm-msg"></div><button id="dlv-confirm-yes">Yes</button><button id="dlv-confirm-no">Go back</button></div></div>
 <script>
 // ============================================================
 // CONFIG — REQUIRED
 // ============================================================
-var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKIBCfrZsSIVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+// IT115 - OLD backend (deployment AKfycbzyJ8..., frozen on July 21 code v300) kept for reference only:
+// var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzyJ8ioKIBCfrZsSIVMCNirecqWGZnu8u4BSn33xW1w8Bngr2Xwv8JFHBabnKODTWNb6w/exec';
+// IT115 - recorder now talks to the MAIN DLV deployment (same as the Storage Summary), so it runs current code.
+var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
+// IT115 - every GET to the main deployment must carry the (public) beta key.
+var DLV_BETA_KEY = 'DLV2026Beta-Xq9Rz3Km';
 // NEW in IT73 (bugfix) — GAS_WEBAPP_URL above is a different
 // deployment than the actual DLV Storage Summary app (confirmed:
 // navigating to bare GAS_WEBAPP_URL returns Google Drive's "Sorry,
@@ -853,6 +906,8 @@ var signatureLocked = false;
 // NEW in IT73 (item 11b/11c) — lock state for the recording,
 // parallel to signatureLocked.
 var recordingLocked = false;
+// NEW in IT115 - letter FINAL lock (first step of Letter -> Signature -> Recording)
+var letterLocked = false;
 // REMOVED in IT78 — returnToMain() deleted along with the top button
 // it powered.
 // NEW in IT72 (tweak #10), FIXED in IT73 — was pointed at
@@ -894,6 +949,8 @@ function returnToSummary() {
   window.location.href = url;
 }
 function toggleRecording() {
+  // IT115 - recording unlocks only after the signature is FINAL
+  if (!isRecording && !signatureLocked) { setRecStatus('Please tap FINAL on your letter and signature first.'); return; }
   if (!isRecording) { startRecording(); } else { stopRecording(); }
 }
 // CHANGED in IT78 — startRecording() now reuses an already-granted mic
@@ -1018,6 +1075,8 @@ function initSignatureCanvas() {
   sigCanvas.addEventListener('pointerdown', function(e) {
     // NEW in IT72 (tweak #6) — ignore drawing once locked
     if (signatureLocked) return;
+    // IT115 - signature unlocks only after the letter is FINAL
+    if (!letterLocked) { setSigStatus('Please tap FINAL on your letter first.'); return; }
     isDrawingSignature = true;
     hasDrawnSignature = true;
     var p = getPos(e);
@@ -1041,10 +1100,15 @@ function clearSignature() {
 }
 // NEW in IT72 (tweak #6) — "Final Version" locks the signature
 function finalizeSignature() {
+  if (!letterLocked) { setSigStatus('Please tap FINAL on your letter first.'); return; }
   if (!hasDrawnSignature) {
     setSigStatus('Please sign above before marking as final.');
     return;
   }
+  dlvConfirm('Are you sure? This cannot be edited afterward.', finalizeSignatureConfirmed_);
+}
+// IT115 - body of the old finalizeSignature(), run after the in-page confirm
+function finalizeSignatureConfirmed_() {
   signatureLocked = true;
   document.getElementById('finalize-signature-btn').disabled = true;
   // NEW in IT76 — collapse the signature box + Re-sign/Final Version
@@ -1064,10 +1128,26 @@ function finalizeSignature() {
   var sigNote = document.getElementById('sig-instruction-note');
   if (sigNote) sigNote.style.display = 'none';
   var sigStatusEl = document.getElementById('sig-status');
-  if (sigStatusEl) sigStatusEl.innerHTML = 'Signature finalized. <a href="#" onclick="resignSignature();return false;">Edit signature</a>';
+  // IT115 - FINAL is final: no 'Edit signature' link any more
+  if (sigStatusEl) sigStatusEl.innerHTML = '<div class="dlv-final-note">FINAL signature &mdash; no more signature edits.</div>';
+  var letterStatusEl = document.getElementById('letter-status');
+  if (letterStatusEl) letterStatusEl.style.display = 'none';
+  var letterBox = document.querySelector('.dlv-letter-box');
+  if (letterBox) letterBox.style.display = 'none';
+  // IT115 - show the read-only recording script above the recorder
+  var scriptText = document.getElementById('letter-script-text');
+  var ta = document.getElementById('letter-textarea-recorder');
+  if (scriptText && ta) scriptText.textContent = ta.value;
+  var scriptView = document.getElementById('letter-script-view');
+  if (scriptView) scriptView.style.display = 'block';
+  var recBtn = document.getElementById('record-btn');
+  if (recBtn) recBtn.disabled = false;
+  document.getElementById('record-btn-label').textContent = 'Press START to begin recording';
 }
 // NEW in IT72 (tweak #6) — "Re-sign" clears and unlocks
 function resignSignature() {
+  // IT115 - no re-sign after FINAL
+  if (signatureLocked) return;
   clearSignature();
   signatureLocked = false;
   document.getElementById('finalize-signature-btn').disabled = false;
@@ -1097,7 +1177,13 @@ function finalizeRecording() {
     setSendStatus('Please record your voice message first.');
     return;
   }
+  dlvConfirm('Are you sure? This cannot be edited afterward.', finalizeRecordingConfirmed_);
+}
+// IT115 - body of the old finalizeRecording(), run after the in-page confirm
+function finalizeRecordingConfirmed_() {
   recordingLocked = true;
+  var recFinalNote = document.getElementById('rec-final-note');
+  if (recFinalNote) recFinalNote.style.display = 'block';
   var finBtn = document.getElementById('finalize-recording-btn');
   if (finBtn) finBtn.disabled = true;
   // NEW in IT75 — actually lock out re-recording once finalized;
@@ -1143,7 +1229,7 @@ function jsonpRequest(url, callbackName, timeoutMs) {
 }
 function verifySendWithRetry(requestId, attemptsLeft) {
   var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
-  var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId);
+  var url = GAS_WEBAPP_URL + '?action=checkNominationSent&betaKey=' + encodeURIComponent(DLV_BETA_KEY) + '&requestId=' + encodeURIComponent(requestId);
   var btn = document.getElementById('send-btn');
   jsonpRequest(url, callbackName, 8000)
     .then(function(data) {
@@ -1172,6 +1258,9 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // NEW in IT80 — flags returnToSummary() to append
         // &trusteeJustSent=<N> now that a send is actually confirmed.
         nominationSent = true;
+        // IT115 - nothing to start over once sent
+        var startOver = document.getElementById('start-over-wrap');
+        if (startOver) startOver.style.display = 'none';
         // NEW in IT81 — collapse the "Review your voice recording"
         // block now that the recording has actually been sent; the
         // security note and the sent-badge stay visible as before.
@@ -1221,6 +1310,10 @@ function sendNomination() {
     setSendStatus('Please review your letter above — it cannot be empty.');
     return;
   }
+  if (!letterLocked) {
+    setSendStatus('Please tap FINAL on your letter before sending.');
+    return;
+  }
   if (!hasDrawnSignature) {
     setSendStatus('Please sign your letter above before sending.');
     return;
@@ -1258,7 +1351,9 @@ function sendNomination() {
       signatureDataUrl: signatureDataUrl,
       clientRequestId: requestId,
       durationSeconds: timerSeconds,
-      domainsGranted: domainsGrantedFromUrl
+      domainsGranted: domainsGrantedFromUrl,
+      // IT115 - session token: lets Beta testers send before launch; Try Me First goes to the demo send
+      token: tokenFromUrl
     };
     fetch(GAS_WEBAPP_URL, {
       method: 'POST',
@@ -1278,6 +1373,8 @@ function sendNomination() {
   reader.readAsDataURL(audioBlob);
 }
 function reRecord() {
+  // IT115 - no re-recording after FINAL
+  if (recordingLocked) return;
   audioBlob = null; audioChunks = [];
   timerSeconds = 0; updateTimerDisplay();
   document.getElementById('audio-player').src = '';
@@ -1359,7 +1456,48 @@ document.addEventListener('change', function(e) {
   }
 });
 
+// ============================================================
+// IT115 - in-page confirm, letter FINAL, start over
+// ============================================================
+var dlvConfirmYesFn_ = null;
+function dlvConfirm(msg, onYes) {
+  var ov = document.getElementById('dlv-confirm-overlay');
+  if (!ov) { onYes(); return; }
+  document.getElementById('dlv-confirm-msg').textContent = msg;
+  dlvConfirmYesFn_ = onYes;
+  ov.style.display = 'flex';
+}
+function dlvConfirmClose_() { var ov = document.getElementById('dlv-confirm-overlay'); if (ov) ov.style.display = 'none'; dlvConfirmYesFn_ = null; }
+function finalizeLetter() {
+  var ta = document.getElementById('letter-textarea-recorder');
+  if (!ta || !ta.value.trim()) { setLetterStatus_('Your letter cannot be empty.'); return; }
+  dlvConfirm('Are you sure? This cannot be edited afterward.', function() {
+    letterLocked = true;
+    ta.readOnly = true;
+    var row = document.getElementById('letter-btn-row');
+    if (row) row.style.display = 'none';
+    var note = document.getElementById('letter-instruction-note');
+    if (note) note.style.display = 'none';
+    var ls = document.getElementById('letter-status');
+    if (ls) ls.innerHTML = '<div class="dlv-final-note">FINAL draft of letter &mdash; no more edits.</div>';
+    var sigStep = document.getElementById('sig-step');
+    if (sigStep) sigStep.classList.remove('dlv-step-locked');
+    setSigStatus('');
+  });
+}
+function setLetterStatus_(msg) { var el = document.getElementById('letter-status'); if (el) el.textContent = msg; }
+function dlvStartOver() {
+  dlvConfirm('Start over for this trustee? Your letter edits, signature and recording on this page will be cleared.', function() {
+    try { releaseMicStream(); } catch (e) {}
+    window.location.reload();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+  var cYes = document.getElementById('dlv-confirm-yes');
+  if (cYes) cYes.addEventListener('click', function() { var fn = dlvConfirmYesFn_; dlvConfirmClose_(); if (fn) fn(); });
+  var cNo = document.getElementById('dlv-confirm-no');
+  if (cNo) cNo.addEventListener('click', dlvConfirmClose_);
   var label = document.getElementById('trustee-number-label');
   if (label) label.textContent = trusteeNumber ? trusteeNumber : 'Not specified';
   var nameLabel = document.getElementById('trustee-name-label');
