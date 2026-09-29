@@ -14,7 +14,7 @@
    4) Trustee choices are display-only, greyed, inside the letter box
       ('Your trustee will tap one of these:'); old 'My response' auto-fill unused.
    5) 'Start over for this trustee' link (until sent) = clean reload.
-   6) Visible version tag in footer: digilegacyvault.com · IT115.
+   6) Visible version tag in footer: digilegacyvault.com · IT118.
 ============================================================
  IT82 | August 6, 2026 — the Photo tab's email prefill (added IT80)
  only copied FROM the main Storage Summary page's "Subscriber Email
@@ -713,6 +713,14 @@ h1 {
 .dlv-choices-disabled { opacity: .55; pointer-events: none; }
 .dlv-final-note { font-size: .8rem; font-weight: bold; color: #2d5a27; background: #e8f3e6; border: 1px solid #b7d4b1; border-radius: 8px; padding: 8px 10px; margin: 8px 0; text-align: center; }
 .dlv-step-locked { opacity: .45; }
+/* IT118 - numbered steps + prominent gold FINAL buttons so the next action is obvious */
+.dlv-step-label { text-align:center; font-family: Georgia, serif; font-weight:bold; font-size:.82rem; letter-spacing:1.5px; color:#7a5c2e; margin:12px 0 4px; }
+.dlv-step-label.done { color:#2d5a27; }
+#finalize-letter-btn, #finalize-signature-btn { background:#d2a22b; color:#fff; border:none; font-size:1rem; padding:12px 30px; }
+#finalize-letter-btn:hover, #finalize-signature-btn:hover { background:#b98c1f; }
+.dlv-pulse { animation: dlvPulse 1.6s ease-in-out infinite; }
+@keyframes dlvPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,162,43,.65); } 50% { box-shadow:0 0 0 12px rgba(210,162,43,0); } }
+.dlv-lock-hint { text-align:center; font-family: Georgia, serif; font-weight:bold; font-size:.85rem; color:#8a5a00; background:#fff6d6; border:1px solid #e8cf7a; border-radius:8px; padding:8px 10px; margin:8px auto; max-width:440px; }
 #letter-script-view { display: none; text-align: left; background: #fffdf6; border: 2px solid #b8860b; border-radius: 10px; padding: 12px 14px; margin: 10px 0 14px; }
 #letter-script-view .script-head { font-size: .78rem; font-weight: bold; color: #7a5c2e; text-align: center; margin-bottom: 8px; letter-spacing: .03em; }
 #letter-script-text { white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6; color: #1a1108; max-height: 380px; overflow-y: auto; }
@@ -749,7 +757,8 @@ h1 {
   </div>
   <hr class="rec-divider">
   <!-- tweak #4 — instruction text replaces "REVIEW YOUR LETTER" label -->
-  <p class="instruction-note" id="letter-instruction-note">Edit your letter as many times as needed.<br>Tap FINAL when done &mdash; the final version is your recording script.</p>
+  <div class="dlv-step-label" id="step1-label">STEP 1 of 3 &middot; YOUR LETTER</div>
+  <p class="instruction-note" id="letter-instruction-note">Edit your letter as many times as needed.<br>When it reads right, tap the gold <b>FINAL Letter</b> button below &mdash; the final version is your recording script.</p>
   <div class="dlv-letter-box">
   <textarea id="letter-textarea-recorder"></textarea>
   <p class="instruction-note" id="letter-response-caption">Your trustee will tap one of these:</p>
@@ -760,18 +769,20 @@ h1 {
   </div>
   </div>
   <div class="sig-btn-row" id="letter-btn-row">
-    <button class="sig-btn" id="finalize-letter-btn" onclick="finalizeLetter()">FINAL Letter</button>
+    <button class="sig-btn dlv-pulse" id="finalize-letter-btn" onclick="finalizeLetter()">&#10004; FINAL Letter</button>
   </div>
   <div id="letter-status"></div>
   <hr class="rec-divider">
   <!-- tweak #5 — instruction text replaces "SIGN YOUR LETTER" label -->
+  <div class="dlv-step-label" id="step2-label">STEP 2 of 3 &middot; YOUR SIGNATURE</div>
+  <div class="dlv-lock-hint" id="sig-lock-hint">&#128274; Unlocks after you tap <b>FINAL Letter</b> above.</div>
   <div id="sig-step" class="dlv-step-locked">
   <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below. Sign and re-sign as many times as needed.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
   <canvas id="signature-canvas" width="400" height="140"></canvas>
   <!-- tweak #6 — Re-sign / Final Version buttons replace Clear Signature -->
   <div class="sig-btn-row" id="sig-btn-row">
     <button class="sig-btn" id="resign-btn" onclick="resignSignature()">Re-sign</button>
-    <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">FINAL Signature</button>
+    <button class="sig-btn" id="finalize-signature-btn" onclick="finalizeSignature()">&#10004; FINAL Signature</button>
   </div>
   <div id="sig-status"></div>
   </div><!-- /#sig-step -->
@@ -779,6 +790,7 @@ h1 {
   <p class="security-note">For security reason, digital signature is not saved.</p>
   <hr class="rec-divider">
   <!-- tweak #8 — green Voice Recording banner replaces the old label -->
+  <div class="dlv-step-label" id="step3-label">STEP 3 of 3 &middot; YOUR VOICE MESSAGE</div>
   <div class="voice-banner">Voice Recording</div>
   <!-- IT115: read-only recording script, shown once the signature is FINAL -->
   <div id="letter-script-view">
@@ -825,7 +837,7 @@ h1 {
     <div id="send-status"></div>
   </div>
   <p id="start-over-wrap"><a href="#" onclick="dlvStartOver();return false;">Start over for this trustee</a></p>
-  <div id="rec-footer">digilegacyvault.com &middot; IT115</div>
+  <div id="rec-footer">digilegacyvault.com &middot; IT118</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
 <button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
@@ -1076,7 +1088,7 @@ function initSignatureCanvas() {
     // NEW in IT72 (tweak #6) — ignore drawing once locked
     if (signatureLocked) return;
     // IT115 - signature unlocks only after the letter is FINAL
-    if (!letterLocked) { setSigStatus('Please tap FINAL on your letter first.'); return; }
+    if (!letterLocked) { dlvNudgeLetterFinal_(); return; }
     isDrawingSignature = true;
     hasDrawnSignature = true;
     var p = getPos(e);
@@ -1100,7 +1112,7 @@ function clearSignature() {
 }
 // NEW in IT72 (tweak #6) — "Final Version" locks the signature
 function finalizeSignature() {
-  if (!letterLocked) { setSigStatus('Please tap FINAL on your letter first.'); return; }
+  if (!letterLocked) { dlvNudgeLetterFinal_(); return; }
   if (!hasDrawnSignature) {
     setSigStatus('Please sign above before marking as final.');
     return;
@@ -1110,6 +1122,11 @@ function finalizeSignature() {
 // IT115 - body of the old finalizeSignature(), run after the in-page confirm
 function finalizeSignatureConfirmed_() {
   signatureLocked = true;
+  // IT118 - step 2 done: mark it and bring step 3 (recording) into view
+  try {
+    var s2d = document.getElementById('step2-label'); if (s2d) { s2d.classList.add('done'); s2d.innerHTML = '&#10004; STEP 2 of 3 &middot; SIGNATURE FINAL'; }
+    var s3 = document.getElementById('step3-label'); if (s3 && s3.scrollIntoView) setTimeout(function(){ s3.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150);
+  } catch (e) {}
   document.getElementById('finalize-signature-btn').disabled = true;
   // NEW in IT76 — collapse the signature box + Re-sign/Final Version
   // buttons once finalized, per Alfredt's request (shortens the page so
@@ -1483,7 +1500,18 @@ function finalizeLetter() {
     var sigStep = document.getElementById('sig-step');
     if (sigStep) sigStep.classList.remove('dlv-step-locked');
     setSigStatus('');
+    // IT118 - step 1 done: hide lock hint, pulse FINAL Signature, bring step 2 into view
+    var hint = document.getElementById('sig-lock-hint'); if (hint) hint.style.display = 'none';
+    var s1 = document.getElementById('step1-label'); if (s1) { s1.classList.add('done'); s1.innerHTML = '&#10004; STEP 1 of 3 &middot; LETTER FINAL'; }
+    var fsb = document.getElementById('finalize-signature-btn'); if (fsb) fsb.classList.add('dlv-pulse');
+    var s2 = document.getElementById('step2-label'); if (s2 && s2.scrollIntoView) s2.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+}
+// IT118 - if someone taps the locked signature area, show them where to go
+function dlvNudgeLetterFinal_() {
+  setSigStatus('Please tap FINAL Letter above first.');
+  var b = document.getElementById('finalize-letter-btn');
+  if (b && b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function setLetterStatus_(msg) { var el = document.getElementById('letter-status'); if (el) el.textContent = msg; }
 function dlvStartOver() {
