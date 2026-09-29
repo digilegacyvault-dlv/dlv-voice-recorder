@@ -837,10 +837,10 @@ h1 {
     <div id="send-status"></div>
   </div>
   <p id="start-over-wrap"><a href="#" onclick="dlvStartOver();return false;">Start over for this trustee</a></p>
-  <div id="rec-footer">digilegacyvault.com &middot; IT118</div>
+  <div id="rec-footer">digilegacyvault.com &middot; IT119</div>
 </div>
 <!-- tweak #10 — bottom button now returns to the DLV Storage Summary page -->
-<button id="return-summary-btn" onclick="returnToSummary()">Return to DLV Storage Summary</button>
+<button id="return-summary-btn" onclick="returnToSummary()" style="display:none;">Proceed to Upload Photo</button><!-- IT119 - hidden until the invitation is sent -->
 <!-- IT115: in-page confirmation (no browser alert/confirm dialogs) -->
 <div id="dlv-confirm-overlay"><div id="dlv-confirm-box"><div id="dlv-confirm-msg"></div><button id="dlv-confirm-yes">Yes</button><button id="dlv-confirm-no">Go back</button></div></div>
 <script>
@@ -1271,7 +1271,7 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // the Photo upload lives inside Storage Summary's My Profile
         // & Trustees modal.
         var returnBtn = document.getElementById('return-summary-btn');
-        if (returnBtn) returnBtn.textContent = 'Proceed to Upload Photo';
+        if (returnBtn) { returnBtn.textContent = 'Proceed to Upload Photo'; returnBtn.style.display = ''; } // IT119 - appears only after send
         // NEW in IT80 — flags returnToSummary() to append
         // &trusteeJustSent=<N> now that a send is actually confirmed.
         nominationSent = true;
