@@ -726,8 +726,9 @@ h1 {
 #letter-script-text { white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6; color: #1a1108; max-height: 380px; overflow-y: auto; }
 #record-btn:disabled { opacity: .45; cursor: default; }
 #dlv-confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9999; align-items: center; justify-content: center; }
-#dlv-confirm-box { background: #fff; border-radius: 12px; max-width: 360px; width: 88%; padding: 20px; text-align: center; font-family: Georgia, serif; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
-#dlv-confirm-msg { font-size: .95rem; font-weight: bold; color: #1a1108; margin-bottom: 16px; }
+#dlv-confirm-box { background: #fff; border-radius: 12px; max-width: 480px; width: 94%; padding: 20px 12px; /* IT119o - wider so the question fits on one line (was 360px / 88%) */ text-align: center; font-family: Georgia, serif; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+#dlv-confirm-msg { font-size: clamp(.7rem, 3.5vw, .95rem); white-space: nowrap; font-weight: bold; color: #1a1108; margin-bottom: 16px; } /* IT119o - one line */
+@media (min-width: 520px) { .dlv-1line { white-space: nowrap; } } /* IT119o - each signature sentence on one line (phones wrap so text stays readable) */
 #dlv-confirm-box button { font-family: Georgia, serif; font-weight: bold; border-radius: 30px; padding: 9px 18px; margin: 0 6px; cursor: pointer; font-size: .9rem; }
 #dlv-confirm-yes { background: #2d5a27; color: #fff; border: none; }
 #dlv-confirm-no { background: #fff; color: #1a1108; border: 1px solid #c8b99a; }
@@ -777,7 +778,7 @@ h1 {
   <div class="dlv-step-label" id="step2-label">STEP 2 of 3 &middot; YOUR SIGNATURE</div>
   <div class="dlv-lock-hint" id="sig-lock-hint">&#128274; Unlocks after you tap <b>FINAL Letter</b> above.</div>
   <div id="sig-step" class="dlv-step-locked">
-  <p class="instruction-note" id="sig-instruction-note">Digital signature in the box below. Sign and re-sign as many times as needed.<br>Use digital pen for touchscreen or computer mouse (non-touchscreen).</p>
+  <p class="instruction-note" id="sig-instruction-note"><span class="dlv-1line">Digital signature in the box below. Sign and re-sign as many times as needed.</span><br><span class="dlv-1line">Use a digital pen (touchscreen) or your mouse (computer).</span></p> <!-- IT119o -->
   <canvas id="signature-canvas" width="400" height="140"></canvas>
   <!-- tweak #6 — Re-sign / Final Version buttons replace Clear Signature -->
   <div class="sig-btn-row" id="sig-btn-row">
