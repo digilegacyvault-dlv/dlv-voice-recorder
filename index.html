@@ -473,8 +473,8 @@ h1 {
   width: 90px;
   height: 90px;
   border-radius: 50%;
-  border: 3px solid #b8860b;
-  background: #b8860b; color: #ffffff;
+  border: 3px solid #5a3e1b;
+  background: #5a3e1b; color: #ffffff; /* IT119l - dark brown (was gold) */
   font-size: .88rem;
   font-weight: bold;
   cursor: pointer;
@@ -486,7 +486,7 @@ h1 {
   justify-content: center;
   letter-spacing: .04em;
 }
-#record-btn:hover { background: #a07808; border-color: #a07808; }
+#record-btn:hover { background: #3e2a10; border-color: #3e2a10; }
 #record-btn.recording {
   background: #c0392b;
   border-color: #c0392b;
@@ -716,8 +716,8 @@ h1 {
 /* IT118 - numbered steps + prominent gold FINAL buttons so the next action is obvious */
 .dlv-step-label { text-align:center; font-family: Georgia, serif; font-weight:bold; font-size:.82rem; letter-spacing:1.5px; color:#7a5c2e; margin:12px 0 4px; }
 .dlv-step-label.done { color:#2d5a27; }
-#finalize-letter-btn, #finalize-signature-btn { background:#d2a22b; color:#fff; border:none; font-size:1rem; padding:12px 30px; }
-#finalize-letter-btn:hover, #finalize-signature-btn:hover { background:#b98c1f; }
+#finalize-letter-btn, #finalize-signature-btn { background:#5a3e1b; color:#fff; border:none; font-size:1rem; padding:12px 30px; } /* IT119l - white on dark brown (was gold) */
+#finalize-letter-btn:hover, #finalize-signature-btn:hover { background:#3e2a10; }
 .dlv-pulse { animation: dlvPulse 1.6s ease-in-out infinite; }
 @keyframes dlvPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,162,43,.65); } 50% { box-shadow:0 0 0 12px rgba(210,162,43,0); } }
 .dlv-lock-hint { text-align:center; font-family: Georgia, serif; font-weight:bold; font-size:.85rem; color:#8a5a00; background:#fff6d6; border:1px solid #e8cf7a; border-radius:8px; padding:8px 10px; margin:8px auto; max-width:440px; }
@@ -1074,8 +1074,8 @@ function initSignatureCanvas() {
   sigCanvas = document.getElementById('signature-canvas');
   if (!sigCanvas) return;
   sigCtx = sigCanvas.getContext('2d');
-  sigCtx.strokeStyle = '#1a1108';
-  sigCtx.lineWidth = 2;
+  sigCtx.strokeStyle = '#000000';
+  sigCtx.lineWidth = 3.5; // IT119l - bolder, darker signature (was 2, #1a1108)
   sigCtx.lineCap = 'round';
   sigCtx.lineJoin = 'round';
   function getPos(e) {
@@ -1291,6 +1291,10 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // left to re-record; nothing was holding it open unnecessarily
         // before this, but this makes the cleanup explicit and final.
         releaseMicStream();
+      } else if (data && data.failed) {
+        // IT119k6/IT119l - the server refused the send; show the real reason
+        setSendStatus('Not sent: ' + (data.message || 'please try again.'));
+        btn.disabled = false;
       } else if (attemptsLeft > 0) {
         setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
         setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
@@ -1349,15 +1353,21 @@ function sendNomination() {
   setSendStatus('Sending your nomination…');
   var requestId = 'TOK' + Date.now() + Math.random().toString(36).substring(2, 8);
   var signatureDataUrl = sigCanvas ? sigCanvas.toDataURL('image/png') : '';
+  // IT119l - convert to WAV so the voice message plays on iPhone too (.webm does not).
+  setSendStatus('Preparing your voice message…');
+  dlvToWav_(audioBlob).then(function(w) { dlvSendBlob_(w, 'audio/wav', '.wav'); })
+    .catch(function() { dlvSendBlob_(audioBlob, 'audio/webm', '.webm'); });
+  function dlvSendBlob_(sendBlob, sendMime, sendExt) {
+  setSendStatus('Sending your nomination…');
   var reader = new FileReader();
   reader.onload = function(e) {
     var base64 = e.target.result.split(',')[1];
     var fileName = 'VoiceMessage_Trustee' + (trusteeNumber || 'X') + '_' + requestId +
-      '_' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+      '_' + new Date().toISOString().replace(/[:.]/g, '-') + sendExt;
     var payload = {
       action: 'sendTrusteeNomination',
       base64Data: base64,
-      mimeType: 'audio/webm',
+      mimeType: sendMime,
       fileName: fileName,
       subscriberEmail: subscriberEmail,
       subscriberName: subscriberName,
@@ -1387,7 +1397,34 @@ function sendNomination() {
       btn.disabled = false;
     });
   };
-  reader.readAsDataURL(audioBlob);
+  reader.readAsDataURL(sendBlob);
+  }
+}
+// IT119l - decode the recording and re-encode as 16 kHz mono 16-bit WAV (plays everywhere, ~1.9 MB/min).
+function dlvToWav_(blob) {
+  return blob.arrayBuffer().then(function(buf) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var ac = new AC();
+    return new Promise(function(res, rej) { ac.decodeAudioData(buf, res, rej); })
+      .then(function(decoded) {
+        try { ac.close(); } catch (e) {}
+        var rate = 16000;
+        var len = Math.ceil(decoded.duration * rate);
+        var off = new OfflineAudioContext(1, Math.max(len, 1), rate);
+        var src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start(0);
+        return off.startRendering();
+      });
+  }).then(function(rendered) {
+    var pcm = rendered.getChannelData(0), n = pcm.length;
+    var view = new DataView(new ArrayBuffer(44 + n * 2));
+    function str(o, s) { for (var i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    str(36, 'data'); view.setUint32(40, n * 2, true);
+    for (var i = 0, o = 44; i < n; i++, o += 2) { var v = Math.max(-1, Math.min(1, pcm[i])); view.setInt16(o, v < 0 ? v * 0x8000 : v * 0x7FFF, true); }
+    return new Blob([view], { type: 'audio/wav' });
+  });
 }
 function reRecord() {
   // IT115 - no re-recording after FINAL
