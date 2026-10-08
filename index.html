@@ -815,6 +815,7 @@ h1 {
     </ol>
     <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
     <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
+    <p style="margin-top:12px;"><button type="button" onclick="dlvSkipRecording_()" style="background:#fff;color:#5a3e1b;border:2px solid #5a3e1b;border-radius:30px;padding:10px 20px;font-weight:bold;font-family:Georgia,serif;cursor:pointer;">Skip this step and continue</button></p> <!-- IT120a -->
   </div>
   </div><!-- /#pre-recording-content -->
   <div id="playback-section">
@@ -899,6 +900,18 @@ var letterBodyFromUrl = getLetterBodyFromUrl();
 var domainsGrantedFromUrl = getDomainsGrantedFromUrl();
 var demoModeFromUrl = ((new URLSearchParams(window.location.search)).get('demo') === '1');
 var tokenFromUrl = (new URLSearchParams(window.location.search)).get('token') || '';
+// IT120a - report steps to Visitor Insights (anonymous visit id lives on the server)
+function dlvTrackR_(step, detail) {
+  if (!tokenFromUrl || !GAS_WEBAPP_URL) return;
+  var u = navigator.userAgent || '';
+  var dev = (/iPad|Tablet/i.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1)) ? 'tablet' : (/Mobi|Android|iPhone/i.test(u) ? 'phone' : 'computer');
+  try {
+    fetch(GAS_WEBAPP_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: step === 'skip' ? 'skipStep' : 'track', token: tokenFromUrl, step: step === 'skip' ? 'recorder_sent' : step, detail: detail || '', device: dev }) }).catch(function() {});
+  } catch (e) {}
+}
+// IT120a - "Skip this step" when the microphone or the send will not work: go on to the photo step.
+function dlvSkipRecording_() { dlvTrackR_('skip', 'recorder'); setTimeout(returnToSummary, 400); }
 var mediaRecorder = null;var audioChunks = [];
 var audioBlob = null;
 var isRecording = false;
@@ -1273,6 +1286,8 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // & Trustees modal.
         var returnBtn = document.getElementById('return-summary-btn');
         if (returnBtn) { returnBtn.textContent = 'Proceed to Upload Photo'; returnBtn.style.display = ''; } // IT119 - appears only after send
+        dlvTrackR_('recorder_sent', 'trustee ' + trusteeNumber); // IT120a
+        var sk_ = document.getElementById('dlv-send-skip'); if (sk_) sk_.style.display = 'none';
         // NEW in IT80 — flags returnToSummary() to append
         // &trusteeJustSent=<N> now that a send is actually confirmed.
         nominationSent = true;
@@ -1296,12 +1311,14 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // IT119k6/IT119l - the server refused the send; show the real reason
         setSendStatus('Not sent: ' + (data.message || 'please try again.'));
         btn.disabled = false;
+        dlvTrackR_('send_failed', 'refused: ' + (data.message || '')); dlvShowSendSkip_(); // IT120a
       } else if (attemptsLeft > 0) {
         setSendStatus('Sending your nomination… verifying (' + attemptsLeft + ' left)');
         setTimeout(function() { verifySendWithRetry(requestId, attemptsLeft - 1); }, 2000);
       } else {
         setSendStatus('Could not verify the send. Please check your connection and try again.');
         btn.disabled = false;
+        dlvTrackR_('send_failed', 'could not verify'); dlvShowSendSkip_(); // IT120a
       }
     })
     .catch(function() {
@@ -1310,6 +1327,7 @@ function verifySendWithRetry(requestId, attemptsLeft) {
       } else {
         setSendStatus('Could not verify the send. Please check your connection and try again.');
         btn.disabled = false;
+        dlvTrackR_('send_failed', 'could not verify'); dlvShowSendSkip_(); // IT120a
       }
     });
 }
@@ -1456,7 +1474,7 @@ function reRecord() {
 }
 function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
-function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; }
+function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; dlvTrackR_('mic_denied', 'recorder: microphone blocked'); } // IT120a
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
 // NEW — make the "choose one of the squares" checkboxes in the letter
 // tappable, with no side effects beyond marking the chosen line with a
@@ -1559,7 +1577,20 @@ function dlvStartOver() {
   });
 }
 
+// IT120a - after a failed send, offer a way forward
+function dlvShowSendSkip_() {
+  var sk = document.getElementById('dlv-send-skip');
+  if (!sk) {
+    sk = document.createElement('div'); sk.id = 'dlv-send-skip';
+    sk.style.cssText = 'text-align:center;margin:12px 0;';
+    sk.innerHTML = '<button type="button" onclick="dlvSkipRecording_()" style="background:#fff;color:#5a3e1b;border:2px solid #5a3e1b;border-radius:30px;padding:10px 20px;font-weight:bold;font-family:Georgia,serif;cursor:pointer;">Skip this step and continue</button>';
+    var st = document.getElementById('send-status');
+    if (st && st.parentNode) st.parentNode.insertBefore(sk, st.nextSibling); else document.body.appendChild(sk);
+  }
+  sk.style.display = 'block';
+}
 document.addEventListener('DOMContentLoaded', function() {
+  dlvTrackR_('recorder_open', 'trustee ' + (trusteeNumber || '?')); // IT120a
   var cYes = document.getElementById('dlv-confirm-yes');
   if (cYes) cYes.addEventListener('click', function() { var fn = dlvConfirmYesFn_; dlvConfirmClose_(); if (fn) fn(); });
   var cNo = document.getElementById('dlv-confirm-no');
