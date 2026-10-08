@@ -1480,7 +1480,7 @@ function dlvMicHelp_() {
   var u = navigator.userAgent || '';
   var iOS = /iPhone|iPad|iPod/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1);
   var android = /Android/.test(u), mac = /Macintosh/.test(u) && !iOS, win = /Windows/.test(u);
-  var inApp = /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Messenger|MicroMessenger|GSA\//.test(u);
+  var inApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|LinkedInApp|MicroMessenger|Snapchat|Twitter|TikTok|musical_ly|BytedanceWebview|Pinterest|GSA\//.test(u);
   var samsung = /SamsungBrowser/.test(u), edge = /Edg\//.test(u), firefox = /Firefox|FxiOS/.test(u);
   var chrome = /Chrome|CriOS/.test(u) && !edge && !samsung, safari = /Safari/.test(u) && !chrome && !edge && !firefox && !samsung;
   var dev = iOS ? (/iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone') : android ? (samsung || /SM-/.test(u) ? 'Samsung phone' : 'Android phone') : mac ? 'Mac' : win ? 'Windows computer' : 'computer';
@@ -1617,6 +1617,18 @@ function dlvShowSendSkip_() {
 }
 document.addEventListener('DOMContentLoaded', function() {
   dlvTrackR_('recorder_open', 'trustee ' + (trusteeNumber || '?')); // IT120a
+  // IT120d - inside another app's browser? Warn at the top, before they write the letter.
+  try {
+    var ua_ = navigator.userAgent || '';
+    if (/FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|LinkedInApp|MicroMessenger|Snapchat|Twitter|TikTok|musical_ly|BytedanceWebview|Pinterest|GSA\//.test(ua_)) {
+      var ios_ = /iPhone|iPad|iPod/.test(ua_), wb_ = ios_ ? 'Safari' : 'Chrome';
+      var ib_ = document.createElement('div');
+      ib_.style.cssText = 'background:#fff3cd;border:3px solid #e0b84a;border-radius:10px;margin:10px;padding:10px 14px;text-align:center;font-weight:bold;font-family:Georgia,serif;color:#1a1108;line-height:1.5;';
+      ib_.innerHTML = '&#9888; You opened this page inside another app, which may block the microphone. Please open it in ' + wb_ + ': tap <b>&#8943;</b> or <b>Share</b>, then <b>Open in ' + wb_ + '</b>.';
+      document.body.insertBefore(ib_, document.body.firstChild);
+      dlvTrackR_('inapp_browser', 'recorder');
+    }
+  } catch (e) {}
   // IT120c - if the microphone is already blocked, show the device steps before they press Record
   try { if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'microphone' }).then(function(p) { if (p && p.state === 'denied') showMicDenied(); }).catch(function() {}); } catch (e) {}
   var cYes = document.getElementById('dlv-confirm-yes');
