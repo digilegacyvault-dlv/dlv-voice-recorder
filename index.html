@@ -748,7 +748,7 @@ h1 {
   <div id="pre-recording-content">
   <p id="recorder-subtitle">Review your letter, sign, and record your voice message — then send it all together</p>
   <!-- tweak #1 — zoom tip moved above the badges -->
-  <div id="zoom-tip">&#128269; Tip: Press <strong>Command</strong> and <strong>+</strong> (Mac) or <strong>Ctrl</strong> and <strong>+</strong> (Windows) to enlarge this page for an easier view of the text while reviewing, editing, and recording.</div>
+  <div id="zoom-tip">&#128269; Tip: press <strong>&#8984; + / &#8984; &minus;</strong> (Mac) or <strong>Ctrl + / Ctrl &minus;</strong> (Windows) to enlarge or reduce text on this page.</div> <!-- IT120c -->
   <!-- tweak #2 — re-worded, yellow-highlighted trustee badge -->
   <div id="trustee-badge">Trustee Nominee #<span id="trustee-number-label">&#8212;</span>: <span id="trustee-name-label"></span></div>
   <!-- tweak #3 — two-line centered domains text -->
@@ -806,14 +806,14 @@ h1 {
   <p class="rec-instructions">Before starting put your computer volume at max level.<br>Re-record as many times as needed.<br>For security reason, voice recording is not saved.</p>
   <div id="rec-status"></div>
   <div id="mic-denied-box">
-    <p>&#9888; Microphone access was denied. To fix this:</p>
-    <ol>
+    <p>&#9888; Your microphone is blocked. To turn it on:</p>
+    <p id="mic-help-device" style="font-weight:bold;margin:4px 0;"></p>
+    <ol id="mic-help-steps">
       <li>Click the lock icon in your browser address bar</li>
       <li>Set <strong>Microphone</strong> to <strong>Allow</strong></li>
-      <li>Check <strong>"Allow on every visit"</strong></li>
       <li>Click <strong>Try Again</strong> below</li>
     </ol>
-    <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this tab after granting permission.</p>
+    <p style="font-size:.72rem;color:#7a6040;">If Try Again still fails, reload this page after turning the microphone on.</p> <!-- IT120c - steps above are filled in for the visitor's own device -->
     <button id="try-again-btn" onclick="retryMic()">&#8635; Try Again</button>
     <p style="margin-top:12px;"><button type="button" onclick="dlvSkipRecording_()" style="background:#fff;color:#5a3e1b;border:2px solid #5a3e1b;border-radius:30px;padding:10px 20px;font-weight:bold;font-family:Georgia,serif;cursor:pointer;">Skip this step and continue</button></p> <!-- IT120a -->
   </div>
@@ -1474,7 +1474,33 @@ function reRecord() {
 }
 function setRecStatus(msg) { document.getElementById('rec-status').textContent = msg; }
 function setSendStatus(msg) { document.getElementById('send-status').textContent = msg; }
-function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; dlvTrackR_('mic_denied', 'recorder: microphone blocked'); } // IT120a
+function showMicDenied() { document.getElementById('mic-denied-box').style.display = 'block'; var h = dlvMicHelp_(); dlvTrackR_('mic_denied', 'microphone blocked: ' + h.device); } // IT120a/IT120c
+// IT120c - microphone instructions for the visitor's own phone / computer and browser.
+function dlvMicHelp_() {
+  var u = navigator.userAgent || '';
+  var iOS = /iPhone|iPad|iPod/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1);
+  var android = /Android/.test(u), mac = /Macintosh/.test(u) && !iOS, win = /Windows/.test(u);
+  var inApp = /FBAN|FBAV|Instagram|Line\/|LinkedInApp|Messenger|MicroMessenger|GSA\//.test(u);
+  var samsung = /SamsungBrowser/.test(u), edge = /Edg\//.test(u), firefox = /Firefox|FxiOS/.test(u);
+  var chrome = /Chrome|CriOS/.test(u) && !edge && !samsung, safari = /Safari/.test(u) && !chrome && !edge && !firefox && !samsung;
+  var dev = iOS ? (/iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone') : android ? (samsung || /SM-/.test(u) ? 'Samsung phone' : 'Android phone') : mac ? 'Mac' : win ? 'Windows computer' : 'computer';
+  var br = inApp ? 'an app\'s built-in browser' : samsung ? 'Samsung Internet' : edge ? 'Edge' : firefox ? 'Firefox' : chrome ? 'Chrome' : safari ? 'Safari' : 'your browser';
+  var steps;
+  if (inApp) steps = ['This page opened inside another app, which can block the microphone.', 'Tap the <strong>&#8943;</strong> or <strong>Share</strong> button and choose <strong>Open in ' + (iOS ? 'Safari' : 'Chrome') + '</strong>.', 'Then record your message there.'];
+  else if (iOS && !chrome && !firefox) steps = ['Tap <strong>aA</strong> (left of the web address) and choose <strong>Website Settings</strong>.', 'Set <strong>Microphone</strong> to <strong>Allow</strong>.', 'Still blocked? Open the <strong>Settings</strong> app &rarr; <strong>Apps</strong> &rarr; <strong>Safari</strong> &rarr; <strong>Microphone</strong> &rarr; <strong>Allow</strong>.', 'Come back and tap <strong>Try Again</strong>.'];
+  else if (iOS) steps = ['Open the <strong>Settings</strong> app &rarr; <strong>Apps</strong> &rarr; <strong>' + br + '</strong>.', 'Turn <strong>Microphone</strong> on.', 'Come back, reload this page and tap <strong>Try Again</strong>.'];
+  else if (samsung) steps = ['Tap <strong>&#8801;</strong> (menu) &rarr; <strong>Settings</strong> &rarr; <strong>Sites and downloads</strong> &rarr; <strong>Site permissions</strong> &rarr; <strong>Microphone</strong>.', 'Allow it for this site.', 'Come back and tap <strong>Try Again</strong>.'];
+  else if (android) steps = ['Tap the icon left of the web address (lock or sliders).', 'Tap <strong>Permissions</strong> and set <strong>Microphone</strong> to <strong>Allow</strong>.', 'Still blocked? Phone <strong>Settings</strong> &rarr; <strong>Apps</strong> &rarr; <strong>' + br + '</strong> &rarr; <strong>Permissions</strong> &rarr; <strong>Microphone</strong> &rarr; <strong>Allow</strong>.', 'Come back and tap <strong>Try Again</strong>.'];
+  else if (mac && safari) steps = ['In the top menu bar, click <strong>Safari</strong> &rarr; <strong>Settings for This Website&hellip;</strong>', 'Set <strong>Microphone</strong> to <strong>Allow</strong>.', 'Still blocked? Apple menu &rarr; <strong>System Settings</strong> &rarr; <strong>Privacy &amp; Security</strong> &rarr; <strong>Microphone</strong> &rarr; turn on <strong>Safari</strong>.', 'Click <strong>Try Again</strong>.'];
+  else if (firefox) steps = ['Click the crossed-out microphone icon in the address bar.', 'Remove the block (click the <strong>&times;</strong> next to it).', 'Click <strong>Try Again</strong> and choose <strong>Allow</strong>.'];
+  else if (mac) steps = ['Click the icon left of the web address (lock or sliders).', 'Set <strong>Microphone</strong> to <strong>Allow</strong>, then reload this page.', 'Still blocked? Apple menu &rarr; <strong>System Settings</strong> &rarr; <strong>Privacy &amp; Security</strong> &rarr; <strong>Microphone</strong> &rarr; turn on <strong>' + (edge ? 'Microsoft Edge' : 'Google Chrome') + '</strong>.', 'Click <strong>Try Again</strong>.'];
+  else if (win) steps = ['Click the icon left of the web address (lock or sliders).', 'Set <strong>Microphone</strong> to <strong>Allow</strong>, then reload this page.', 'Still blocked? Windows <strong>Settings</strong> &rarr; <strong>Privacy &amp; security</strong> &rarr; <strong>Microphone</strong> &rarr; turn on <strong>Let desktop apps access your microphone</strong>.', 'Click <strong>Try Again</strong>.'];
+  else steps = ['Click the icon left of the web address (lock or sliders).', 'Set <strong>Microphone</strong> to <strong>Allow</strong>.', 'Click <strong>Try Again</strong>.'];
+  var d = document.getElementById('mic-help-device'), ol = document.getElementById('mic-help-steps');
+  if (d) d.textContent = 'For your ' + dev + ' (' + br + '):';
+  if (ol) ol.innerHTML = steps.map(function(x) { return '<li>' + x + '</li>'; }).join('');
+  return { device: dev + ' / ' + br };
+}
 function hideMicDenied() { document.getElementById('mic-denied-box').style.display = 'none'; }
 // NEW — make the "choose one of the squares" checkboxes in the letter
 // tappable, with no side effects beyond marking the chosen line with a
@@ -1591,6 +1617,8 @@ function dlvShowSendSkip_() {
 }
 document.addEventListener('DOMContentLoaded', function() {
   dlvTrackR_('recorder_open', 'trustee ' + (trusteeNumber || '?')); // IT120a
+  // IT120c - if the microphone is already blocked, show the device steps before they press Record
+  try { if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'microphone' }).then(function(p) { if (p && p.state === 'denied') showMicDenied(); }).catch(function() {}); } catch (e) {}
   var cYes = document.getElementById('dlv-confirm-yes');
   if (cYes) cYes.addEventListener('click', function() { var fn = dlvConfirmYesFn_; dlvConfirmClose_(); if (fn) fn(); });
   var cNo = document.getElementById('dlv-confirm-no');
