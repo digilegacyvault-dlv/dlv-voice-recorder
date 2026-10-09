@@ -854,7 +854,7 @@ h1 {
 // IT115 - recorder now talks to the MAIN DLV deployment (same as the Storage Summary), so it runs current code.
 var GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxGG5z60Ce0ubFFwasaKqfTbPb8uyb4JDuaYSbeePrZt1q8vBdKSjclL6OQMNEaSytr9A/exec';
 // IT115 - every GET to the main deployment must carry the (public) beta key.
-var DLV_BETA_KEY = 'DLV2026Beta-Xq9Rz3Km';
+var DLV_BETA_KEY = ''; // IT121 - key removed from this public page; the app now trusts the visit's session token
 // NEW in IT73 (bugfix) — GAS_WEBAPP_URL above is a different
 // deployment than the actual DLV Storage Summary app (confirmed:
 // navigating to bare GAS_WEBAPP_URL returns Google Drive's "Sorry,
@@ -954,7 +954,7 @@ var letterLocked = false;
 var nominationSent = false;
 function returnToSummary() {
   var sep = STORAGE_SUMMARY_URL.indexOf('?') > -1 ? '&' : '?';
-  var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1&betaKey=DLV2026Beta-Xq9Rz3Km';
+  var url = STORAGE_SUMMARY_URL + sep + 'openPhotoTab=1'; // IT121 - no Beta key; &token= below opens the page
   if (nominationSent && trusteeNumber) {
     url += '&trusteeJustSent=' + encodeURIComponent(trusteeNumber);
   }
@@ -1260,7 +1260,7 @@ function jsonpRequest(url, callbackName, timeoutMs) {
 }
 function verifySendWithRetry(requestId, attemptsLeft) {
   var callbackName = 'dlvVerify_' + requestId.replace(/[^a-zA-Z0-9]/g, '');
-  var url = GAS_WEBAPP_URL + '?action=checkNominationSent&betaKey=' + encodeURIComponent(DLV_BETA_KEY) + '&requestId=' + encodeURIComponent(requestId);
+  var url = GAS_WEBAPP_URL + '?action=checkNominationSent&requestId=' + encodeURIComponent(requestId) + '&token=' + encodeURIComponent(tokenFromUrl || ''); // IT121
   var btn = document.getElementById('send-btn');
   jsonpRequest(url, callbackName, 8000)
     .then(function(data) {
