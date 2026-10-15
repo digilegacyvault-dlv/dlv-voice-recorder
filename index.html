@@ -1287,7 +1287,7 @@ function verifySendWithRetry(requestId, attemptsLeft) {
         // the Photo upload lives inside Storage Summary's My Profile
         // & Trustees modal.
         var returnBtn = document.getElementById('return-summary-btn');
-        if (returnBtn) { returnBtn.textContent = 'Proceed to Upload Photo'; returnBtn.style.display = ''; } // IT119 - appears only after send
+        if (returnBtn) { returnBtn.textContent = (String(trusteeNumber) === '1') ? 'Continue to Trustee #2' : 'Return to My Vault Summary'; /* IT131 - names the real next step (was: 'Proceed to Upload Photo'; photo now comes before Trustees) */ returnBtn.style.display = ''; } // IT119 - appears only after send
         dlvTrackR_('recorder_sent', 'trustee ' + trusteeNumber); // IT120a
         var sk_ = document.getElementById('dlv-send-skip'); if (sk_) sk_.style.display = 'none';
         // NEW in IT80 — flags returnToSummary() to append
