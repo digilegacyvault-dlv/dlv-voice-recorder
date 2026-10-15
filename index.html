@@ -1023,7 +1023,9 @@ function beginRecordingWithStream(stream) {
     if (e.data.size > 0) audioChunks.push(e.data);
   });
   mediaRecorder.addEventListener('stop', function() {
-    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    // IT130 - label the recording with the format the device really recorded (iPhone = audio/mp4).
+    // Was always 'audio/webm' -> iPhone Safari/Chrome showed 'Error' in the review player.
+    audioBlob = new Blob(audioChunks, { type: (mediaRecorder && mediaRecorder.mimeType) || (audioChunks[0] && audioChunks[0].type) || 'audio/mp4' });
     var url = URL.createObjectURL(audioBlob);
     document.getElementById('audio-player').src = url;
     document.getElementById('playback-section').style.display = 'block';
@@ -1375,7 +1377,7 @@ function sendNomination() {
   // IT119l - convert to WAV so the voice message plays on iPhone too (.webm does not).
   setSendStatus('Preparing your voice message…');
   dlvToWav_(audioBlob).then(function(w) { dlvSendBlob_(w, 'audio/wav', '.wav'); })
-    .catch(function() { dlvSendBlob_(audioBlob, 'audio/webm', '.webm'); });
+    .catch(function() { dlvSendBlob_(audioBlob, String(audioBlob.type || 'audio/webm').split(';')[0], /mp4|aac|m4a/i.test(audioBlob.type) ? '.m4a' : '.webm'); /* IT130 - real format */ });
   function dlvSendBlob_(sendBlob, sendMime, sendExt) {
   setSendStatus('Sending your nomination…');
   var reader = new FileReader();
